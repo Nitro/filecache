@@ -14,9 +14,10 @@ type FileCache struct {
 	BaseDir   string
 	S3Bucket  string
 	AwsRegion string
-	cache     *lru.Cache
-	waiting   map[string]chan struct{}
+	Cache     *lru.Cache
+	Waiting   map[string]chan struct{}
 	waitLock  sync.Mutex
+	DownloadFunc func(fname string, localPath string) error
 }
 
 // I don't like New() methods that return errors, but that's what
@@ -28,13 +29,16 @@ func New(size int, baseDir string, s3Bucket string, awsRegion string) (*FileCach
 		return nil, err
 	}
 
-	return &FileCache{
-		cache:   cache,
+	fCache := &FileCache{
+		Cache:   cache,
 		BaseDir: baseDir,
 		S3Bucket: s3Bucket,
 		AwsRegion: awsRegion,
-		waiting: make(map[string]chan struct{}),
-	}, nil
+		Waiting: make(map[string]chan struct{}),
+	}
+	fCache.DownloadFunc = fCache.S3Download
+
+	return fCache, nil
 }
 
 // Fetch will return true if we have the file, or will go download
@@ -50,7 +54,7 @@ func (c *FileCache) Fetch(filename string) bool {
 		return true
 	}
 
-	err := c.download(filename)
+	err := c.Download(filename)
 	if err != nil {
 		log.Errorf("Tried to fetch file %s, got '%s'", filename, err)
 		return false
@@ -62,31 +66,31 @@ func (c *FileCache) Fetch(filename string) bool {
 // Contains looks to see if we have an entry in the cache for this
 // filename.
 func (c *FileCache) Contains(filename string) bool {
-	return c.cache.Contains(filename)
+	return c.Cache.Contains(filename)
 }
 
 // Go out to the backing store (S3) and get the file
-func (c *FileCache) download(filename string) error {
+func (c *FileCache) Download(filename string) error {
 	c.waitLock.Lock()
 	if c.Contains(filename) {
 		c.waitLock.Unlock()
 		return nil
 	}
-	c.waiting[filename] = make(chan struct{})
+	c.Waiting[filename] = make(chan struct{})
 	c.waitLock.Unlock()
 
 	// Still don't have it, let's fetch it
 	storagePath := c.GetFileName(filename)
-	_, _, err := c.S3Download(filename, storagePath)
+	err := c.DownloadFunc(filename, storagePath)
 	if err != nil {
 		return err
 	}
 
-	c.cache.Add(filename, storagePath)
-	close(c.waiting[filename]) // Notify anyone waiting on us
+	c.Cache.Add(filename, storagePath)
+	close(c.Waiting[filename]) // Notify anyone waiting on us
 
 	c.waitLock.Lock()
-	delete(c.waiting, filename) // Remove it from the waiting map
+	delete(c.Waiting, filename) // Remove it from the waiting map
 	c.waitLock.Unlock()
 
 	return nil
@@ -94,7 +98,7 @@ func (c *FileCache) download(filename string) error {
 
 func (c *FileCache) maybeAwaitDownload(filename string) bool {
 	c.waitLock.Lock()
-	waitChan, ok := c.waiting[filename]
+	waitChan, ok := c.Waiting[filename]
 	if !ok { // Nobody is downloading it
 		c.waitLock.Unlock()
 		return false // We didn't wait
@@ -109,7 +113,7 @@ func (c *FileCache) maybeAwaitDownload(filename string) bool {
 	// And if something there went wrong, we could _still_ not have it.
 	// Returning false here could cause Fetch() to retry this
 	// once per request currently waiting on the download.
-	return cache.Contains(filename)
+	return c.Cache.Contains(filename)
 }
 
 // GetFileName returns the full storage path and file name for a
