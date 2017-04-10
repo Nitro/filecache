@@ -45,16 +45,12 @@ func New(size int, baseDir string, s3Bucket string, awsRegion string) (*FileCach
 // the file and return true if we can. It will return false only
 // if it's unable to fetch the file from the backing store (S3).
 func (c *FileCache) Fetch(filename string) bool {
+	// Try a few non-locking
 	if c.Contains(filename) {
 		return true
 	}
 
-	// If we're already fetching it, just wait for it
-	if c.maybeAwaitDownload(filename) {
-		return true
-	}
-
-	err := c.Download(filename)
+	err := c.MaybeDownload(filename)
 	if err != nil {
 		log.Errorf("Tried to fetch file %s, got '%s'", filename, err)
 		return false
@@ -69,17 +65,27 @@ func (c *FileCache) Contains(filename string) bool {
 	return c.Cache.Contains(filename)
 }
 
-// Go out to the backing store (S3) and get the file
-func (c *FileCache) Download(filename string) error {
+// MaybeDownload might go out to the backing store (S3) and get the file
+// if the file isn't already being downloaded in another routine. In
+// both cases it will block until the download is completed either by
+// this goroutine or another one.
+func (c *FileCache) MaybeDownload(filename string) error {
+	// See if someone is already downloading
 	c.waitLock.Lock()
-	if c.Contains(filename) {
+	if waitChan, ok := c.Waiting[filename]; ok {
 		c.waitLock.Unlock()
+
+		log.Debugf("Awaiting download of %s", filename)
+		<-waitChan
 		return nil
 	}
+
+	// Still don't have it, let's fetch it.
+	// This tells other goroutines that we're fetching, and
+	// lets us signal completion.
 	c.Waiting[filename] = make(chan struct{})
 	c.waitLock.Unlock()
 
-	// Still don't have it, let's fetch it
 	storagePath := c.GetFileName(filename)
 	err := c.DownloadFunc(filename, storagePath)
 	if err != nil {
@@ -94,26 +100,6 @@ func (c *FileCache) Download(filename string) error {
 	c.waitLock.Unlock()
 
 	return nil
-}
-
-func (c *FileCache) maybeAwaitDownload(filename string) bool {
-	c.waitLock.Lock()
-	waitChan, ok := c.Waiting[filename]
-	if !ok { // Nobody is downloading it
-		c.waitLock.Unlock()
-		return false // We didn't wait
-	}
-	c.waitLock.Unlock()
-
-	log.Debugf("Awaiting download of %s", filename)
-
-	// It was being downloaded, let's wait for that to finish
-	<-waitChan
-
-	// And if something there went wrong, we could _still_ not have it.
-	// Returning false here could cause Fetch() to retry this
-	// once per request currently waiting on the download.
-	return c.Cache.Contains(filename)
 }
 
 // GetFileName returns the full storage path and file name for a

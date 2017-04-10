@@ -57,21 +57,13 @@ var _ = Describe("Filecache", func() {
 		})
 	})
 
-	Describe("Download()", func() {
+	Describe("MaybeDownload()", func() {
 		BeforeEach(func() {
 			cache.DownloadFunc = mockDownloader
 		})
 
-		It("skips downloading when we have the file", func() {
-			cache.Cache.Add("bilbo", true)
-			err := cache.Download("bilbo")
-
-			Expect(err).To(BeNil())
-			Expect(didDownload).To(BeFalse())
-		})
-
 		It("downloads a file that's not in the cache", func() {
-			err := cache.Download("bilbo")
+			err := cache.MaybeDownload("bilbo")
 
 			Expect(err).To(BeNil())
 			Expect(didDownload).To(BeTrue())
@@ -81,21 +73,58 @@ var _ = Describe("Filecache", func() {
 		It("returns an error when the backing downloader failed", func() {
 			downloadShouldError = true
 
-			err := cache.Download("bilbo")
+			err := cache.MaybeDownload("bilbo")
 			Expect(err).To(HaveOccurred())
 		})
 
 		It("does not leave garbage in 'Waiting'", func() {
-			cache.Download("bilbo")
+			cache.MaybeDownload("bilbo")
 
 			_, ok := cache.Waiting["bilbo"]
 			Expect(ok).To(BeFalse())
 		})
 
 		It("adds entries to the cache after downloading", func() {
-			cache.Download("bilbo")
+			Expect(cache.Contains("bilbo")).NotTo(BeTrue())
+
+			cache.MaybeDownload("bilbo")
 
 			Expect(cache.Contains("bilbo")).To(BeTrue())
+		})
+
+		It("doesn't duplicate a download that started already", func() {
+			cache.Waiting["bilbo"] = make(chan struct{})
+
+			// In the background we'll close/remove the channel
+			// to simulate another downloader
+			go func() {
+				time.Sleep(1*time.Millisecond)
+				close(cache.Waiting["bilbo"])
+				delete(cache.Waiting, "bilbo")
+			}()
+
+			err := cache.MaybeDownload("bilbo")
+
+			Expect(didDownload).To(BeFalse())
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Describe("Fetch()", func() {
+		BeforeEach(func() {
+			cache.DownloadFunc = mockDownloader
+		})
+
+		It("doesn't try to download files we already have", func() {
+			cache.Cache.Add("aragorn", true)
+
+			Expect(cache.Fetch("aragorn")).To(BeTrue())
+			Expect(didDownload).To(BeFalse())
+		})
+
+		It("downloads the file when we don't have it", func() {
+			Expect(cache.Fetch("aragorn")).To(BeTrue())
+			Expect(didDownload).To(BeTrue())
 		})
 	})
 })
