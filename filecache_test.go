@@ -2,6 +2,7 @@ package filecache_test
 
 import (
 	"errors"
+	"sync"
 	"time"
 
 	. "github.com/Nitro/filecache"
@@ -18,6 +19,8 @@ var _ = Describe("Filecache", func() {
 		didDownload         bool
 		downloadShouldSleep bool
 		downloadShouldError bool
+		downloadCount       int
+		countLock sync.Mutex
 	)
 
 	mockDownloader := func(fname string, localPath string) error {
@@ -27,6 +30,9 @@ var _ = Describe("Filecache", func() {
 		if downloadShouldSleep {
 			time.Sleep(10 * time.Millisecond)
 		}
+		countLock.Lock()
+		downloadCount += 1
+		countLock.Unlock()
 		didDownload = true
 		return nil
 	}
@@ -73,7 +79,10 @@ var _ = Describe("Filecache", func() {
 
 	Describe("MaybeDownload()", func() {
 		BeforeEach(func() {
+			cache, err = NewS3Cache(10, ".", "aragorn-foo", "gondor-north-1")
 			cache.DownloadFunc = mockDownloader
+
+			downloadCount = 0
 		})
 
 		It("downloads a file that's not in the cache", func() {
@@ -107,45 +116,40 @@ var _ = Describe("Filecache", func() {
 		})
 
 		It("doesn't duplicate a download that started already", func() {
-			cache.WaitLock.Lock()
-			cache.Waiting["bilbo"] = make(chan struct{})
-			cache.WaitLock.Unlock()
+			// If the download doesn't take any time then we end up
+			// falling back to the test case scenario "re-download on
+			// a data race" below.
+			downloadShouldSleep = true
 
-			// In the background we'll close/remove the channel
-			// to simulate another downloader
-			go func(cache *FileCache) {
-				time.Sleep(1 * time.Millisecond)
+			var wg sync.WaitGroup
+			for i := 0; i < 10; i++ {
+				wg.Add(1)
+				go func() { cache.MaybeDownload("bilbo"); wg.Done() }()
+			}
+			wg.Wait()
 
-				cache.WaitLock.Lock()
-				close(cache.Waiting["bilbo"])
-				delete(cache.Waiting, "bilbo")
-				cache.WaitLock.Unlock()
-			}(cache)
-
-			err := cache.MaybeDownload("bilbo")
-
-			Expect(didDownload).To(BeFalse())
+			Expect(didDownload).To(BeTrue())
+			Expect(downloadCount).To(Equal(1))
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("waits in many goroutines when one is already downloading", func() {
-			go func() {
-				time.Sleep(1 * time.Millisecond)
-				close(cache.Waiting["bilbo"])
-				delete(cache.Waiting, "bilbo")
-			}()
-
+		It("doesn't re-download on a data race", func() {
+			var wg sync.WaitGroup
 			for i := 0; i < 10; i++ {
-				cache.MaybeDownload("bilbo")
+				wg.Add(1)
+				go func() { cache.MaybeDownload("bilbo"); wg.Done() }()
 			}
+			wg.Wait()
 
 			Expect(didDownload).To(BeTrue())
+			Expect(downloadCount).To(Equal(1))
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Describe("Fetch()", func() {
 		BeforeEach(func() {
+			cache, err = NewS3Cache(10, ".", "aragorn-foo", "gondor-north-1")
 			cache.DownloadFunc = mockDownloader
 		})
 

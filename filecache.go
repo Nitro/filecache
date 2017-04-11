@@ -91,9 +91,16 @@ func (c *FileCache) MaybeDownload(filename string) error {
 		return nil
 	}
 
+	// The file could have arrived while we were getting here
+	if c.Contains(filename) {
+		c.WaitLock.Unlock()
+		return nil
+	}
+
 	// Still don't have it, let's fetch it.
 	// This tells other goroutines that we're fetching, and
 	// lets us signal completion.
+	log.Debugf("Making channel for %s", filename)
 	c.Waiting[filename] = make(chan struct{})
 	c.WaitLock.Unlock()
 
@@ -104,9 +111,10 @@ func (c *FileCache) MaybeDownload(filename string) error {
 	}
 
 	c.Cache.Add(filename, storagePath)
-	close(c.Waiting[filename]) // Notify anyone waiting on us
 
 	c.WaitLock.Lock()
+	log.Debugf("Deleting channel for %s", filename)
+	close(c.Waiting[filename])  // Notify anyone waiting on us
 	delete(c.Waiting, filename) // Remove it from the waiting map
 	c.WaitLock.Unlock()
 
