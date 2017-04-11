@@ -22,6 +22,10 @@ func hasDirectoryComponent(localPath string) bool {
 	return len(parts) > 1
 }
 
+// S3Download will fetch a file from the specified bucket into a localPath. It
+// will create sub-directories as needed inside that path in order to store the
+// complete path name of the file.
+
 func S3Download(fname string, localPath string, bucket string, region string) error {
 	if hasDirectoryComponent(localPath) {
 		log.Debugf("MkdirAll() on %s", filepath.Dir(localPath))

@@ -14,7 +14,7 @@ type FileCache struct {
 	BaseDir      string
 	Cache        *lru.Cache
 	Waiting      map[string]chan struct{}
-	waitLock     sync.Mutex
+	WaitLock     sync.Mutex
 	DownloadFunc func(fname string, localPath string) error
 }
 
@@ -82,9 +82,9 @@ func (c *FileCache) Contains(filename string) bool {
 // block until the download is completed either by this goroutine or another one.
 func (c *FileCache) MaybeDownload(filename string) error {
 	// See if someone is already downloading
-	c.waitLock.Lock()
+	c.WaitLock.Lock()
 	if waitChan, ok := c.Waiting[filename]; ok {
-		c.waitLock.Unlock()
+		c.WaitLock.Unlock()
 
 		log.Debugf("Awaiting download of %s", filename)
 		<-waitChan
@@ -95,7 +95,7 @@ func (c *FileCache) MaybeDownload(filename string) error {
 	// This tells other goroutines that we're fetching, and
 	// lets us signal completion.
 	c.Waiting[filename] = make(chan struct{})
-	c.waitLock.Unlock()
+	c.WaitLock.Unlock()
 
 	storagePath := c.GetFileName(filename)
 	err := c.DownloadFunc(filename, storagePath)
@@ -106,9 +106,9 @@ func (c *FileCache) MaybeDownload(filename string) error {
 	c.Cache.Add(filename, storagePath)
 	close(c.Waiting[filename]) // Notify anyone waiting on us
 
-	c.waitLock.Lock()
+	c.WaitLock.Lock()
 	delete(c.Waiting, filename) // Remove it from the waiting map
-	c.waitLock.Unlock()
+	c.WaitLock.Unlock()
 
 	return nil
 }

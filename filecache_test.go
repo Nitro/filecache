@@ -11,9 +11,14 @@ import (
 )
 
 var _ = Describe("Filecache", func() {
-	var cache *FileCache
-	var err error
-	var didDownload, downloadShouldSleep, downloadShouldError bool
+	var (
+		cache *FileCache
+		err   error
+
+		didDownload         bool
+		downloadShouldSleep bool
+		downloadShouldError bool
+	)
 
 	mockDownloader := func(fname string, localPath string) error {
 		if downloadShouldError {
@@ -45,7 +50,6 @@ var _ = Describe("Filecache", func() {
 			Expect(cache.DownloadFunc("junk", "junk")).To(BeNil())
 		})
 	})
-
 
 	Describe("NewS3Cache()", func() {
 		It("returns a properly configured instance", func() {
@@ -103,19 +107,39 @@ var _ = Describe("Filecache", func() {
 		})
 
 		It("doesn't duplicate a download that started already", func() {
+			cache.WaitLock.Lock()
 			cache.Waiting["bilbo"] = make(chan struct{})
+			cache.WaitLock.Unlock()
 
 			// In the background we'll close/remove the channel
 			// to simulate another downloader
-			go func() {
-				time.Sleep(1*time.Millisecond)
+			go func(cache *FileCache) {
+				time.Sleep(1 * time.Millisecond)
+
+				cache.WaitLock.Lock()
 				close(cache.Waiting["bilbo"])
 				delete(cache.Waiting, "bilbo")
-			}()
+				cache.WaitLock.Unlock()
+			}(cache)
 
 			err := cache.MaybeDownload("bilbo")
 
 			Expect(didDownload).To(BeFalse())
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("waits in many goroutines when one is already downloading", func() {
+			go func() {
+				time.Sleep(1 * time.Millisecond)
+				close(cache.Waiting["bilbo"])
+				delete(cache.Waiting, "bilbo")
+			}()
+
+			for i := 0; i < 10; i++ {
+				cache.MaybeDownload("bilbo")
+			}
+
+			Expect(didDownload).To(BeTrue())
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
