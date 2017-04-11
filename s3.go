@@ -22,7 +22,7 @@ func hasDirectoryComponent(localPath string) bool {
 	return len(parts) > 1
 }
 
-func (c *FileCache) S3Download(fname string, localPath string) error {
+func S3Download(fname string, localPath string, bucket string, region string) error {
 	if hasDirectoryComponent(localPath) {
 		log.Debugf("MkdirAll() on %s", filepath.Dir(localPath))
 		err := os.MkdirAll(filepath.Dir(localPath), 0755)
@@ -36,13 +36,13 @@ func (c *FileCache) S3Download(fname string, localPath string) error {
 		return fmt.Errorf("Could not create local File: %s", err)
 	}
 
-	log.Debugf("Downloading s3://%s/%s", c.S3Bucket, fname)
-	downloader := s3manager.NewDownloader(session.New(&aws.Config{Region: aws.String(c.AwsRegion)}))
-	startTime := time.Now().UTC()
+	log.Debugf("Downloading s3://%s/%s", bucket, fname)
+	downloader := s3manager.NewDownloader(session.New(&aws.Config{Region: aws.String(region)}))
+	startTime := time.Now()
 	numBytes, err := downloader.Download(
 		file,
 		&s3.GetObjectInput{
-			Bucket: aws.String(c.S3Bucket),
+			Bucket: aws.String(bucket),
 			Key:    aws.String(fname),
 		},
 	)
@@ -50,7 +50,7 @@ func (c *FileCache) S3Download(fname string, localPath string) error {
 		return fmt.Errorf("Could not fetch from S3: %s", err)
 	}
 
-	log.Debugf("Took %s to download %d from S3 for %s", time.Now().UTC().Sub(startTime), numBytes, fname)
+	log.Debugf("Took %s to download %d from S3 for %s", time.Now().Sub(startTime), numBytes, fname)
 
 	return nil
 }

@@ -11,39 +11,52 @@ import (
 )
 
 type FileCache struct {
-	BaseDir   string
-	S3Bucket  string
-	AwsRegion string
-	Cache     *lru.Cache
-	Waiting   map[string]chan struct{}
-	waitLock  sync.Mutex
+	BaseDir      string
+	Cache        *lru.Cache
+	Waiting      map[string]chan struct{}
+	waitLock     sync.Mutex
 	DownloadFunc func(fname string, localPath string) error
 }
 
-// I don't like New() methods that return errors, but that's what
-// the Hashicorp lib does. So we kinda have to pass that on or
-// the program loses control of the cache creation.
-func New(size int, baseDir string, s3Bucket string, awsRegion string) (*FileCache, error) {
+// New returns a properly configured cache. Bubbles up errors from the Hashicrorp
+// LRU library when something goes wrong there. The configured cache will have a
+// noop DownloadFunc, which should be replaced if you want to actually get files
+// from somewhere. Or, look at NewS3Cache() which is backed by Amazon S3.
+func New(size int, baseDir string) (*FileCache, error) {
 	cache, err := lru.NewWithEvict(size, onEvictDelete)
 	if err != nil {
 		return nil, err
 	}
 
 	fCache := &FileCache{
-		Cache:   cache,
-		BaseDir: baseDir,
-		S3Bucket: s3Bucket,
-		AwsRegion: awsRegion,
-		Waiting: make(map[string]chan struct{}),
+		Cache:        cache,
+		BaseDir:      baseDir,
+		Waiting:      make(map[string]chan struct{}),
+		DownloadFunc: func(fname string, localPath string) error { return nil },
 	}
-	fCache.DownloadFunc = fCache.S3Download
 
 	return fCache, nil
 }
 
-// Fetch will return true if we have the file, or will go download
-// the file and return true if we can. It will return false only
-// if it's unable to fetch the file from the backing store (S3).
+// NewS3Cache returns a cache where the DownloadFunc will pull files from a
+// specified S3 bucket. Bubbles up errors from the Hashicrorp LRU library when
+// something goes wrong there.
+func NewS3Cache(size int, baseDir string, s3Bucket string, awsRegion string) (*FileCache, error) {
+	fCache, err := New(size, baseDir)
+	if err != nil {
+		return nil, err
+	}
+
+	fCache.DownloadFunc = func(fname string, localPath string) error {
+		return S3Download(fname, localPath, s3Bucket, awsRegion)
+	}
+
+	return fCache, nil
+}
+
+// Fetch will return true if we have the file, or will go download the file and
+// return true if we can. It will return false only if it's unable to fetch the
+// file from the backing store (S3).
 func (c *FileCache) Fetch(filename string) bool {
 	// Try a few non-locking
 	if c.Contains(filename) {
@@ -59,16 +72,14 @@ func (c *FileCache) Fetch(filename string) bool {
 	return true
 }
 
-// Contains looks to see if we have an entry in the cache for this
-// filename.
+// Contains looks to see if we have an entry in the cache for this filename.
 func (c *FileCache) Contains(filename string) bool {
 	return c.Cache.Contains(filename)
 }
 
-// MaybeDownload might go out to the backing store (S3) and get the file
-// if the file isn't already being downloaded in another routine. In
-// both cases it will block until the download is completed either by
-// this goroutine or another one.
+// MaybeDownload might go out to the backing store (S3) and get the file if the
+// file isn't already being downloaded in another routine. In both cases it will
+// block until the download is completed either by this goroutine or another one.
 func (c *FileCache) MaybeDownload(filename string) error {
 	// See if someone is already downloading
 	c.waitLock.Lock()
@@ -102,16 +113,16 @@ func (c *FileCache) MaybeDownload(filename string) error {
 	return nil
 }
 
-// GetFileName returns the full storage path and file name for a
-// file, if it were in the cache. This does _not_ check to see if
-// the file is actually _in_ the cache.
+// GetFileName returns the full storage path and file name for a file, if it were
+// in the cache. This does _not_ check to see if the file is actually _in_ the
+// cache.
 func (c *FileCache) GetFileName(filename string) string {
 	dir, file := filepath.Split(filename)
 	return filepath.Join(c.BaseDir, dir, filepath.FromSlash(path.Clean("/"+file)))
 }
 
-// onEvicteDelete is a callback that is triggered when the LRU
-// cache expires an entry.
+// onEvictDelete is a callback that is triggered when the LRU cache expires an
+// entry.
 func onEvictDelete(key interface{}, value interface{}) {
 	filename := key.(string)
 	storagePath := value.(string)

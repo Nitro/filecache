@@ -27,7 +27,7 @@ var _ = Describe("Filecache", func() {
 	}
 
 	BeforeEach(func() {
-		cache, err = New(10, ".", "aragorn-foo", "gondor-north-1")
+		cache, err = NewS3Cache(10, ".", "aragorn-foo", "gondor-north-1")
 
 		// Reset between runs
 		didDownload = false
@@ -37,10 +37,20 @@ var _ = Describe("Filecache", func() {
 
 	Describe("New()", func() {
 		It("returns a properly configured instance", func() {
+			cache, err := New(10, ".")
+
 			Expect(err).To(BeNil())
 			Expect(cache.Waiting).NotTo(BeNil())
-			Expect(cache.AwsRegion).To(Equal("gondor-north-1"))
-			Expect(cache.S3Bucket).To(Equal("aragorn-foo"))
+			Expect(cache.Cache).NotTo(BeNil())
+			Expect(cache.DownloadFunc("junk", "junk")).To(BeNil())
+		})
+	})
+
+
+	Describe("NewS3Cache()", func() {
+		It("returns a properly configured instance", func() {
+			Expect(err).To(BeNil())
+			Expect(cache.Waiting).NotTo(BeNil())
 			Expect(cache.Cache).NotTo(BeNil())
 			Expect(cache.DownloadFunc).NotTo(BeNil())
 		})
