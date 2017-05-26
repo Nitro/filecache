@@ -2,6 +2,7 @@ package filecache_test
 
 import (
 	"errors"
+	"os"
 	"sync"
 	"time"
 
@@ -20,7 +21,7 @@ var _ = Describe("Filecache", func() {
 		downloadShouldSleep bool
 		downloadShouldError bool
 		downloadCount       int
-		countLock sync.Mutex
+		countLock           sync.Mutex
 	)
 
 	mockDownloader := func(fname string, localPath string) error {
@@ -163,6 +164,30 @@ var _ = Describe("Filecache", func() {
 		It("downloads the file when we don't have it", func() {
 			Expect(cache.Fetch("aragorn")).To(BeTrue())
 			Expect(didDownload).To(BeTrue())
+		})
+	})
+
+	Describe("onEvictDelete()", func() {
+		BeforeEach(func() {
+			cache, _ = NewS3Cache(10, ".", "aragorn-foo", "gondor-north-1")
+		})
+
+		It("calls the downstream eviction callback if it's configured", func() {
+			var didRun bool
+
+			cache.Cache.Add("test-entry", "cache-tmp")
+
+			// We add a file here to the filesystem so we can delete it on purge
+			file, _ := os.Create("cache-tmp")
+			file.Close()
+
+			cache.OnEvict = func(key interface{}, value interface{}) {
+				didRun = true
+			}
+
+			cache.Cache.Purge()
+
+			Expect(didRun).To(BeTrue())
 		})
 	})
 })
