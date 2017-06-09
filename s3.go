@@ -25,7 +25,6 @@ func hasDirectoryComponent(localPath string) bool {
 // S3Download will fetch a file from the specified bucket into a localPath. It
 // will create sub-directories as needed inside that path in order to store the
 // complete path name of the file.
-
 func S3Download(fname string, localPath string, bucket string, region string) error {
 	if hasDirectoryComponent(localPath) {
 		log.Debugf("MkdirAll() on %s", filepath.Dir(localPath))
@@ -40,10 +39,14 @@ func S3Download(fname string, localPath string, bucket string, region string) er
 		return fmt.Errorf("Could not create local File: %s", err)
 	}
 
+	ses, err := session.NewSession(&aws.Config{Region: aws.String(region)})
+	if err != nil {
+		return fmt.Errorf("Could not create S3 session: %s", err)
+	}
+
 	log.Debugf("Downloading s3://%s/%s", bucket, fname)
-	downloader := s3manager.NewDownloader(session.New(&aws.Config{Region: aws.String(region)}))
 	startTime := time.Now()
-	numBytes, err := downloader.Download(
+	numBytes, err := s3manager.NewDownloader(ses).Download(
 		file,
 		&s3.GetObjectInput{
 			Bucket: aws.String(bucket),
@@ -54,7 +57,7 @@ func S3Download(fname string, localPath string, bucket string, region string) er
 		return fmt.Errorf("Could not fetch from S3: %s", err)
 	}
 
-	log.Debugf("Took %s to download %d from S3 for %s", time.Now().Sub(startTime), numBytes, fname)
+	log.Debugf("Took %s to download %d from S3 for %s", time.Since(startTime), numBytes, fname)
 
 	return nil
 }

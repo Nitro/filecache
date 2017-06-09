@@ -178,8 +178,10 @@ var _ = Describe("Filecache", func() {
 			cache.Cache.Add("test-entry", "cache-tmp")
 
 			// We add a file here to the filesystem so we can delete it on purge
-			file, _ := os.Create("cache-tmp")
-			file.Close()
+			file, err := os.Create("cache-tmp")
+			Expect(err).To(BeNil())
+			err = file.Close()
+			Expect(err).To(BeNil())
 
 			cache.OnEvict = func(key interface{}, value interface{}) {
 				didRun = true
