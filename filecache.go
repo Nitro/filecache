@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/golang-lru"
 )
 
+// FileCache is a wrapper for hashicorp/golang-lru
 type FileCache struct {
 	BaseDir      string
 	Cache        *lru.Cache
