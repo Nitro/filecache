@@ -107,6 +107,15 @@ func (c *FileCache) MaybeDownload(filename string) error {
 	c.Waiting[filename] = make(chan struct{})
 	c.WaitLock.Unlock()
 
+	// Ensure we don't leave the channel open when leaving this function
+	defer func() {
+		c.WaitLock.Lock()
+		log.Debugf("Deleting channel for %s", filename)
+		close(c.Waiting[filename])  // Notify anyone waiting on us
+		delete(c.Waiting, filename) // Remove it from the waiting map
+		c.WaitLock.Unlock()
+	}()
+
 	storagePath := c.GetFileName(filename)
 	err := c.DownloadFunc(filename, storagePath)
 	if err != nil {
@@ -114,12 +123,6 @@ func (c *FileCache) MaybeDownload(filename string) error {
 	}
 
 	c.Cache.Add(filename, storagePath)
-
-	c.WaitLock.Lock()
-	log.Debugf("Deleting channel for %s", filename)
-	close(c.Waiting[filename])  // Notify anyone waiting on us
-	delete(c.Waiting, filename) // Remove it from the waiting map
-	c.WaitLock.Unlock()
 
 	return nil
 }
