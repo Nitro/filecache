@@ -1,13 +1,15 @@
 package filecache
 
 import (
+	"crypto/md5"
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
 	"sync"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/hashicorp/golang-lru"
+	log "github.com/sirupsen/logrus"
 )
 
 // FileCache is a wrapper for hashicorp/golang-lru
@@ -129,9 +131,17 @@ func (c *FileCache) MaybeDownload(filename string) error {
 
 // GetFileName returns the full storage path and file name for a file, if it were
 // in the cache. This does _not_ check to see if the file is actually _in_ the
-// cache.
+// cache. This builds a cache structure of up to 16 directories, each beginning
+// with the first letter of the MD5 hash of the filename. This is then joined
+// to the base dir and hashed filename to form the cache path for each file.
+//
+// e.g. /base_dir/b/b0804ec967f48520697662a204f5fe72
+//
 func (c *FileCache) GetFileName(filename string) string {
-	dir, file := filepath.Split(filename)
+	hashed := md5.Sum([]byte(filename))
+
+	file := fmt.Sprintf("%x", hashed)
+	dir := fmt.Sprintf("%x", hashed[0])
 	return filepath.Join(c.BaseDir, dir, filepath.FromSlash(path.Clean("/"+file)))
 }
 
