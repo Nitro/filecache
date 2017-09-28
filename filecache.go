@@ -1,13 +1,16 @@
 package filecache
 
 import (
+	"crypto/md5"
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
 	"sync"
+	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/hashicorp/golang-lru"
+	log "github.com/sirupsen/logrus"
 )
 
 // FileCache is a wrapper for hashicorp/golang-lru
@@ -16,7 +19,7 @@ type FileCache struct {
 	Cache        *lru.Cache
 	Waiting      map[string]chan struct{}
 	WaitLock     sync.Mutex
-	DownloadFunc func(fname string, localPath string) error
+	DownloadFunc func(fname string, url string, localPath string) error
 	OnEvict      func(key interface{}, value interface{})
 }
 
@@ -28,7 +31,7 @@ func New(size int, baseDir string) (*FileCache, error) {
 	fCache := &FileCache{
 		BaseDir:      baseDir,
 		Waiting:      make(map[string]chan struct{}),
-		DownloadFunc: func(fname string, localPath string) error { return nil },
+		DownloadFunc: func(fname string, url string, localPath string) error { return nil },
 	}
 
 	cache, err := lru.NewWithEvict(size, fCache.onEvictDelete)
@@ -50,7 +53,7 @@ func NewS3Cache(size int, baseDir string, s3Bucket string, awsRegion string) (*F
 		return nil, err
 	}
 
-	fCache.DownloadFunc = func(fname string, localPath string) error {
+	fCache.DownloadFunc = func(fname string, url string, localPath string) error {
 		return S3Download(fname, localPath, s3Bucket, awsRegion)
 	}
 
@@ -59,14 +62,16 @@ func NewS3Cache(size int, baseDir string, s3Bucket string, awsRegion string) (*F
 
 // Fetch will return true if we have the file, or will go download the file and
 // return true if we can. It will return false only if it's unable to fetch the
-// file from the backing store (S3).
-func (c *FileCache) Fetch(filename string) bool {
-	// Try a few non-locking
+// file from the backing store (S3). The filename is what we want it to be called
+// locally and the URL is the actual request passed to us.
+func (c *FileCache) Fetch(filename string, url string) bool {
+	// Try a few non-locking on our side. The LRU cache itself handles locking so
+	// we can treat it atomically itself.
 	if c.Contains(filename) {
 		return true
 	}
 
-	err := c.MaybeDownload(filename)
+	err := c.MaybeDownload(filename, url)
 	if err != nil {
 		log.Errorf("Tried to fetch file %s, got '%s'", filename, err)
 		return false
@@ -83,7 +88,7 @@ func (c *FileCache) Contains(filename string) bool {
 // MaybeDownload might go out to the backing store (S3) and get the file if the
 // file isn't already being downloaded in another routine. In both cases it will
 // block until the download is completed either by this goroutine or another one.
-func (c *FileCache) MaybeDownload(filename string) error {
+func (c *FileCache) MaybeDownload(filename string, url string) error {
 	// See if someone is already downloading
 	c.WaitLock.Lock()
 	if waitChan, ok := c.Waiting[filename]; ok {
@@ -117,7 +122,7 @@ func (c *FileCache) MaybeDownload(filename string) error {
 	}()
 
 	storagePath := c.GetFileName(filename)
-	err := c.DownloadFunc(filename, storagePath)
+	err := c.DownloadFunc(filename, url, storagePath)
 	if err != nil {
 		return err
 	}
@@ -129,9 +134,17 @@ func (c *FileCache) MaybeDownload(filename string) error {
 
 // GetFileName returns the full storage path and file name for a file, if it were
 // in the cache. This does _not_ check to see if the file is actually _in_ the
-// cache.
+// cache. This builds a cache structure of up to 16 directories, each beginning
+// with the first letter of the MD5 hash of the filename. This is then joined
+// to the base dir and hashed filename to form the cache path for each file.
+//
+// e.g. /base_dir/b/b0804ec967f48520697662a204f5fe72
+//
 func (c *FileCache) GetFileName(filename string) string {
-	dir, file := filepath.Split(filename)
+	hashed := md5.Sum([]byte(filename))
+
+	file := fmt.Sprintf("%x", hashed)
+	dir := fmt.Sprintf("%x", hashed[0])
 	return filepath.Join(c.BaseDir, dir, filepath.FromSlash(path.Clean("/"+file)))
 }
 

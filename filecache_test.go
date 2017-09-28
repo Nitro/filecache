@@ -24,7 +24,7 @@ var _ = Describe("Filecache", func() {
 		countLock           sync.Mutex
 	)
 
-	mockDownloader := func(fname string, localPath string) error {
+	mockDownloader := func(fname string, url string, localPath string) error {
 		if downloadShouldError {
 			return errors.New("Oh no! Tragedy!")
 		}
@@ -54,7 +54,7 @@ var _ = Describe("Filecache", func() {
 			Expect(err).To(BeNil())
 			Expect(cache.Waiting).NotTo(BeNil())
 			Expect(cache.Cache).NotTo(BeNil())
-			Expect(cache.DownloadFunc("junk", "junk")).To(BeNil())
+			Expect(cache.DownloadFunc("junk", "http://junk", "junk")).To(BeNil())
 		})
 	})
 
@@ -87,7 +87,7 @@ var _ = Describe("Filecache", func() {
 		})
 
 		It("downloads a file that's not in the cache", func() {
-			err := cache.MaybeDownload("bilbo")
+			err := cache.MaybeDownload("bilbo", "/documents/bilbo?args=asdfg")
 
 			Expect(err).To(BeNil())
 			Expect(didDownload).To(BeTrue())
@@ -97,12 +97,12 @@ var _ = Describe("Filecache", func() {
 		It("returns an error when the backing downloader failed", func() {
 			downloadShouldError = true
 
-			err := cache.MaybeDownload("bilbo")
+			err := cache.MaybeDownload("bilbo", "/documents/bilbo?args=asdfg")
 			Expect(err).To(HaveOccurred())
 		})
 
 		It("does not leave garbage in 'Waiting'", func() {
-			cache.MaybeDownload("bilbo")
+			cache.MaybeDownload("bilbo", "/documents/bilbo?args=asdfg")
 
 			_, ok := cache.Waiting["bilbo"]
 			Expect(ok).To(BeFalse())
@@ -111,7 +111,7 @@ var _ = Describe("Filecache", func() {
 		It("adds entries to the cache after downloading", func() {
 			Expect(cache.Contains("bilbo")).NotTo(BeTrue())
 
-			cache.MaybeDownload("bilbo")
+			cache.MaybeDownload("bilbo", "/documents/bilbo?args=asdfg")
 
 			Expect(cache.Contains("bilbo")).To(BeTrue())
 		})
@@ -125,7 +125,7 @@ var _ = Describe("Filecache", func() {
 			var wg sync.WaitGroup
 			for i := 0; i < 10; i++ {
 				wg.Add(1)
-				go func() { cache.MaybeDownload("bilbo"); wg.Done() }()
+				go func() { cache.MaybeDownload("bilbo", "/documents/bilbo?args=asdfg"); wg.Done() }()
 			}
 			wg.Wait()
 
@@ -138,7 +138,7 @@ var _ = Describe("Filecache", func() {
 			var wg sync.WaitGroup
 			for i := 0; i < 10; i++ {
 				wg.Add(1)
-				go func() { cache.MaybeDownload("bilbo"); wg.Done() }()
+				go func() { cache.MaybeDownload("bilbo", "/documents/bilbo?args=asdfg"); wg.Done() }()
 			}
 			wg.Wait()
 
@@ -157,12 +157,12 @@ var _ = Describe("Filecache", func() {
 		It("doesn't try to download files we already have", func() {
 			cache.Cache.Add("aragorn", true)
 
-			Expect(cache.Fetch("aragorn")).To(BeTrue())
+			Expect(cache.Fetch("aragorn", "/documents/aragorn?args=asdfg")).To(BeTrue())
 			Expect(didDownload).To(BeFalse())
 		})
 
 		It("downloads the file when we don't have it", func() {
-			Expect(cache.Fetch("aragorn")).To(BeTrue())
+			Expect(cache.Fetch("aragorn", "/documents/aragorn?args=asdfg")).To(BeTrue())
 			Expect(didDownload).To(BeTrue())
 		})
 	})
