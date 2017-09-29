@@ -53,6 +53,7 @@ func S3Download(fname string, localPath string, bucket string, region string) er
 			Key:    aws.String(fname),
 		},
 	)
+	defer file.Close()
 	if err != nil {
 		return fmt.Errorf("Could not fetch from S3: %s", err)
 	}
