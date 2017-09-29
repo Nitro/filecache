@@ -165,3 +165,19 @@ func (c *FileCache) onEvictDelete(key interface{}, value interface{}) {
 		return
 	}
 }
+
+// Purge clears all the files from the cache (via the onEvict callback for each key).
+func (c *FileCache) Purge() {
+	c.Cache.Purge()
+}
+
+// PurgeAysnc clears all the files from the cache and takes an optional channel
+// to close when the purge has completed.
+func (c *FileCache) PurgeAsync(doneChan chan struct{}) {
+	go func() {
+		c.Purge()
+		if doneChan != nil {
+			close(doneChan)
+		}
+	}()
+}
