@@ -78,6 +78,20 @@ func (c *FileCache) Fetch(filename string) bool {
 	return true
 }
 
+// Reload will remove a file from the cache and attempt to reload from the
+// backing store, calling MaybeDownload().
+func (c *FileCache) Reload(filename string) bool {
+	c.Cache.Remove(filename)
+
+	err := c.MaybeDownload(filename)
+	if err != nil {
+		log.Errorf("Tried to fetch file %s, got '%s'", filename, err)
+		return false
+	}
+
+	return true
+}
+
 // Contains looks to see if we have an entry in the cache for this filename.
 func (c *FileCache) Contains(filename string) bool {
 	return c.Cache.Contains(filename)
