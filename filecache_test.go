@@ -2,7 +2,9 @@ package filecache_test
 
 import (
 	"errors"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -22,6 +24,7 @@ var _ = Describe("Filecache", func() {
 		downloadShouldError bool
 		downloadCount       int
 		countLock           sync.Mutex
+		cacheFile           string
 	)
 
 	mockDownloader := func(fname string, localPath string) error {
@@ -164,6 +167,37 @@ var _ = Describe("Filecache", func() {
 
 		It("downloads the file when we don't have it", func() {
 			Expect(cache.Fetch("aragorn")).To(BeTrue())
+			Expect(didDownload).To(BeTrue())
+		})
+	})
+
+	Describe("FetchNewerThan()", func() {
+		BeforeEach(func() {
+			cache, err = NewS3Cache(10, os.TempDir(), "aragorn-foo", "gondor-north-1")
+			cache.DownloadFunc = mockDownloader
+			didDownload = false
+
+			// Manually write the file to the cache
+			cacheFile = filepath.Join(os.TempDir(), cache.GetFileName("aragorn"))
+			os.MkdirAll(filepath.Dir(cacheFile), 0755)
+			ioutil.WriteFile(cacheFile, []byte(`some bytes`), 0644)
+		})
+
+		AfterEach(func() {
+			os.RemoveAll(cacheFile)
+		})
+
+		It("doesn't try to download files we already have if they are new enough", func() {
+			cache.Cache.Add("aragorn", true)
+			os.MkdirAll(filepath.Dir(cache.GetFileName("aragorn")), 0755)
+			ioutil.WriteFile(cache.GetFileName("aragorn"), []byte("aragorn"), 0644)
+
+			Expect(cache.FetchNewerThan("aragorn", time.Now().Add(-10*time.Minute))).To(BeTrue())
+			Expect(didDownload).To(BeFalse())
+		})
+
+		It("downloads the file when it's too old", func() {
+			Expect(cache.FetchNewerThan("aragorn", time.Now().Add(10*time.Minute))).To(BeTrue())
 			Expect(didDownload).To(BeTrue())
 		})
 	})
