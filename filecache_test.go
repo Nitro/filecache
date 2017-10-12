@@ -152,6 +152,7 @@ var _ = Describe("Filecache", func() {
 		BeforeEach(func() {
 			cache, err = NewS3Cache(10, ".", "aragorn-foo", "gondor-north-1")
 			cache.DownloadFunc = mockDownloader
+			didDownload = false
 		})
 
 		It("doesn't try to download files we already have", func() {
@@ -173,6 +174,7 @@ var _ = Describe("Filecache", func() {
 			cache.DownloadFunc = mockDownloader
 			f, _ := os.OpenFile(cache.GetFileName("aragorn"), os.O_CREATE, 0644)
 			f.Close()
+			didDownload = false
 		})
 
 		It("downloads the file even when we have it", func() {
