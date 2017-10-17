@@ -152,6 +152,7 @@ var _ = Describe("Filecache", func() {
 		BeforeEach(func() {
 			cache, err = NewS3Cache(10, ".", "aragorn-foo", "gondor-north-1")
 			cache.DownloadFunc = mockDownloader
+			didDownload = false
 		})
 
 		It("doesn't try to download files we already have", func() {
@@ -163,6 +164,22 @@ var _ = Describe("Filecache", func() {
 
 		It("downloads the file when we don't have it", func() {
 			Expect(cache.Fetch("aragorn")).To(BeTrue())
+			Expect(didDownload).To(BeTrue())
+		})
+	})
+
+	Describe("Reload()", func() {
+		BeforeEach(func() {
+			cache, err = NewS3Cache(10, os.TempDir(), "aragorn-foo", "gondor-north-1")
+			cache.DownloadFunc = mockDownloader
+			f, _ := os.OpenFile(cache.GetFileName("aragorn"), os.O_CREATE, 0644)
+			f.Close()
+			didDownload = false
+		})
+
+		It("downloads the file even when we have it", func() {
+			cache.Cache.Add("aragorn", cache.GetFileName("aragorn"))
+			Expect(cache.Reload("aragorn")).To(BeTrue())
 			Expect(didDownload).To(BeTrue())
 		})
 	})
