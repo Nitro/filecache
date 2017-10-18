@@ -2,13 +2,15 @@ package filecache
 
 import (
 	"crypto/md5"
-	"hash/fnv"
 	"fmt"
+	"hash/fnv"
 	"os"
 	"path"
 	"path/filepath"
 	"sync"
+	"time"
 
+	"github.com/djherbis/times"
 	"github.com/hashicorp/golang-lru"
 	log "github.com/sirupsen/logrus"
 )
@@ -60,11 +62,33 @@ func NewS3Cache(size int, baseDir string, s3Bucket string, awsRegion string) (*F
 	return fCache, nil
 }
 
+// FetchNewerThan will look in the cache for a file, make sure it's newer than
+// timestamp, and if so return true. Otherwise it will possibly download the file
+// and only return false if it's unable to do so.
+func (c *FileCache) FetchNewerThan(filename string, timestamp time.Time) bool {
+	if !c.Contains(filename) {
+		return c.Fetch(filename)
+	}
+
+	storagePath := c.GetFileName(filename)
+	stat, err := times.Stat(storagePath)
+	if err != nil {
+		return c.Fetch(filename)
+	}
+
+	// We use mtime because the file could have been overwritten with new data
+	// Compare the timestamp, and need to check the cache again... could have changed
+	if c.Contains(filename) && timestamp.Before(stat.ModTime()) {
+		return true
+	}
+
+	return c.Fetch(filename)
+}
+
 // Fetch will return true if we have the file, or will go download the file and
 // return true if we can. It will return false only if it's unable to fetch the
 // file from the backing store (S3).
 func (c *FileCache) Fetch(filename string) bool {
-	// Try a few non-locking
 	if c.Contains(filename) {
 		return true
 	}
@@ -150,7 +174,7 @@ func (c *FileCache) MaybeDownload(filename string) error {
 // with the first 2 letters of the FNV32 hash of the filename. This is then joined
 // to the base dir and MD5 hashed filename to form the cache path for each file.
 //
-// e.g. /base_dir/b/b0804ec967f48520697662a204f5fe72
+// e.g. /base_dir/2b/b0804ec967f48520697662a204f5fe72
 //
 func (c *FileCache) GetFileName(filename string) string {
 	hashedFilename := md5.Sum([]byte(filename))
