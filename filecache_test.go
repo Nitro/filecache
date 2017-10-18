@@ -188,7 +188,7 @@ var _ = Describe("Filecache", func() {
 		})
 
 		It("doesn't try to download files we already have if they are new enough", func() {
-			cache.Cache.Add("aragorn", true)
+			cache.Cache.Add("aragorn", cache.GetFileName("aragorn"))
 			os.MkdirAll(filepath.Dir(cache.GetFileName("aragorn")), 0755)
 			ioutil.WriteFile(cache.GetFileName("aragorn"), []byte("aragorn"), 0644)
 
@@ -197,6 +197,7 @@ var _ = Describe("Filecache", func() {
 		})
 
 		It("downloads the file when it's too old", func() {
+			cache.Cache.Add("aragorn", cache.GetFileName("aragorn"))
 			Expect(cache.FetchNewerThan("aragorn", time.Now().Add(10*time.Minute))).To(BeTrue())
 			Expect(didDownload).To(BeTrue())
 		})

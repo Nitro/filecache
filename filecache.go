@@ -82,7 +82,7 @@ func (c *FileCache) FetchNewerThan(filename string, timestamp time.Time) bool {
 		return true
 	}
 
-	return c.Fetch(filename)
+	return c.Reload(filename)
 }
 
 // Fetch will return true if we have the file, or will go download the file and
