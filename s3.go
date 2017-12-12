@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	log "github.com/sirupsen/logrus"
 )
 
 func hasDirectoryComponent(localPath string) bool {
@@ -38,6 +38,7 @@ func S3Download(fname string, localPath string, bucket string, region string) er
 	if err != nil {
 		return fmt.Errorf("Could not create local File: %s", err)
 	}
+	defer file.Close()
 
 	ses, err := session.NewSession(&aws.Config{Region: aws.String(region)})
 	if err != nil {
@@ -53,7 +54,7 @@ func S3Download(fname string, localPath string, bucket string, region string) er
 			Key:    aws.String(fname),
 		},
 	)
-	defer file.Close()
+
 	if err != nil {
 		return fmt.Errorf("Could not fetch from S3: %s", err)
 	}
