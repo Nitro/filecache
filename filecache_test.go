@@ -43,6 +43,7 @@ var _ = Describe("Filecache", func() {
 
 	BeforeEach(func() {
 		cache, err = NewS3Cache(10, ".", "aragorn-foo", "gondor-north-1")
+		Expect(err).To(BeNil())
 
 		// Reset between runs
 		didDownload = false
@@ -52,7 +53,7 @@ var _ = Describe("Filecache", func() {
 
 	Describe("New()", func() {
 		It("returns a properly configured instance", func() {
-			cache, err := New(10, ".")
+			cache, err = New(10, ".")
 
 			Expect(err).To(BeNil())
 			Expect(cache.Waiting).NotTo(BeNil())
@@ -90,7 +91,7 @@ var _ = Describe("Filecache", func() {
 		})
 
 		It("downloads a file that's not in the cache", func() {
-			err := cache.MaybeDownload("bilbo")
+			err = cache.MaybeDownload("bilbo")
 
 			Expect(err).To(BeNil())
 			Expect(didDownload).To(BeTrue())
@@ -100,7 +101,7 @@ var _ = Describe("Filecache", func() {
 		It("returns an error when the backing downloader failed", func() {
 			downloadShouldError = true
 
-			err := cache.MaybeDownload("bilbo")
+			err = cache.MaybeDownload("bilbo")
 			Expect(err).To(HaveOccurred())
 		})
 
