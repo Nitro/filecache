@@ -15,12 +15,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const (
-	// DownloadTimeout should be less than the timeout of the HTTP handler which uses this library
-	// See here: https://github.com/Nitro/lazyraster/blob/dcc18247f018244fbcdbbddbc593e4b9cb3a323b/http.go#L430
-	DownloadTimeout = 10 * time.Second
-)
-
 func newS3Downloader(awsRegion string) (*s3manager.Downloader, error) {
 	ses, err := session.NewSession(&aws.Config{Region: aws.String(awsRegion)})
 	if err != nil {
@@ -41,7 +35,7 @@ func hasDirectoryComponent(localPath string) bool {
 // S3Download will fetch a file from the specified bucket into a localPath. It
 // will create sub-directories as needed inside that path in order to store the
 // complete path name of the file.
-func S3Download(fname string, localPath string, bucket string, downloader *s3manager.Downloader) error {
+func S3Download(fname string, localPath string, bucket string, downloader *s3manager.Downloader, downloadTimeout time.Duration) error {
 	if hasDirectoryComponent(localPath) {
 		log.Debugf("MkdirAll() on %s", filepath.Dir(localPath))
 		err := os.MkdirAll(filepath.Dir(localPath), 0755)
@@ -56,7 +50,7 @@ func S3Download(fname string, localPath string, bucket string, downloader *s3man
 	}
 	defer file.Close()
 
-	ctx, cancelFunc := context.WithTimeout(context.Background(), DownloadTimeout)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), downloadTimeout)
 	defer cancelFunc()
 
 	log.Debugf("Downloading s3://%s/%s", bucket, fname)

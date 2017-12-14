@@ -49,7 +49,7 @@ func New(size int, baseDir string) (*FileCache, error) {
 // NewS3Cache returns a cache where the DownloadFunc will pull files from a
 // specified S3 bucket. Bubbles up errors from the Hashicrorp LRU library when
 // something goes wrong there.
-func NewS3Cache(size int, baseDir string, s3Bucket string, awsRegion string) (*FileCache, error) {
+func NewS3Cache(size int, baseDir string, s3Bucket string, awsRegion string, downloadTimeout time.Duration) (*FileCache, error) {
 	fCache, err := New(size, baseDir)
 	if err != nil {
 		return nil, err
@@ -61,7 +61,7 @@ func NewS3Cache(size int, baseDir string, s3Bucket string, awsRegion string) (*F
 	}
 
 	fCache.DownloadFunc = func(fname string, localPath string) error {
-		return S3Download(fname, localPath, s3Bucket, downloader)
+		return S3Download(fname, localPath, s3Bucket, downloader, downloadTimeout)
 	}
 
 	return fCache, nil
