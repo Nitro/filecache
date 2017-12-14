@@ -42,7 +42,7 @@ var _ = Describe("Filecache", func() {
 	}
 
 	BeforeEach(func() {
-		cache, err = NewS3Cache(10, ".", "aragorn-foo", "gondor-north-1")
+		cache, err = NewS3Cache(10, ".", "aragorn-foo", "gondor-north-1", 1*time.Millisecond)
 		Expect(err).To(BeNil())
 
 		// Reset between runs
@@ -84,7 +84,7 @@ var _ = Describe("Filecache", func() {
 
 	Describe("MaybeDownload()", func() {
 		BeforeEach(func() {
-			cache, err = NewS3Cache(10, ".", "aragorn-foo", "gondor-north-1")
+			cache, err = NewS3Cache(10, ".", "aragorn-foo", "gondor-north-1", 1*time.Millisecond)
 			cache.DownloadFunc = mockDownloader
 
 			downloadCount = 0
@@ -154,7 +154,7 @@ var _ = Describe("Filecache", func() {
 
 	Describe("Fetch()", func() {
 		BeforeEach(func() {
-			cache, err = NewS3Cache(10, ".", "aragorn-foo", "gondor-north-1")
+			cache, err = NewS3Cache(10, ".", "aragorn-foo", "gondor-north-1", 1*time.Millisecond)
 			cache.DownloadFunc = mockDownloader
 			didDownload = false
 		})
@@ -174,7 +174,7 @@ var _ = Describe("Filecache", func() {
 
 	Describe("FetchNewerThan()", func() {
 		BeforeEach(func() {
-			cache, err = NewS3Cache(10, os.TempDir(), "aragorn-foo", "gondor-north-1")
+			cache, err = NewS3Cache(10, os.TempDir(), "aragorn-foo", "gondor-north-1", 1*time.Millisecond)
 			cache.DownloadFunc = mockDownloader
 			didDownload = false
 
@@ -206,7 +206,7 @@ var _ = Describe("Filecache", func() {
 
 	Describe("Reload()", func() {
 		BeforeEach(func() {
-			cache, err = NewS3Cache(10, os.TempDir(), "aragorn-foo", "gondor-north-1")
+			cache, err = NewS3Cache(10, os.TempDir(), "aragorn-foo", "gondor-north-1", 1*time.Millisecond)
 			cache.DownloadFunc = mockDownloader
 			f, _ := os.OpenFile(cache.GetFileName("aragorn"), os.O_CREATE, 0644)
 			f.Close()
@@ -222,7 +222,7 @@ var _ = Describe("Filecache", func() {
 
 	Describe("onEvictDelete()", func() {
 		BeforeEach(func() {
-			cache, _ = NewS3Cache(10, ".", "aragorn-foo", "gondor-north-1")
+			cache, _ = NewS3Cache(10, ".", "aragorn-foo", "gondor-north-1", 1*time.Millisecond)
 		})
 
 		It("calls the downstream eviction callback if it's configured", func() {
