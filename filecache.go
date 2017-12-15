@@ -49,14 +49,19 @@ func New(size int, baseDir string) (*FileCache, error) {
 // NewS3Cache returns a cache where the DownloadFunc will pull files from a
 // specified S3 bucket. Bubbles up errors from the Hashicrorp LRU library when
 // something goes wrong there.
-func NewS3Cache(size int, baseDir string, s3Bucket string, awsRegion string) (*FileCache, error) {
+func NewS3Cache(size int, baseDir string, s3Bucket string, awsRegion string, downloadTimeout time.Duration) (*FileCache, error) {
 	fCache, err := New(size, baseDir)
 	if err != nil {
 		return nil, err
 	}
 
+	downloader, err := newS3Downloader(awsRegion)
+	if err != nil {
+		log.Fatalf("Failed to initialize the S3 downloader: %s", err)
+	}
+
 	fCache.DownloadFunc = func(fname string, localPath string) error {
-		return S3Download(fname, localPath, s3Bucket, awsRegion)
+		return S3Download(fname, localPath, s3Bucket, downloader, downloadTimeout)
 	}
 
 	return fCache, nil
@@ -209,7 +214,7 @@ func (c *FileCache) Purge() {
 	c.Cache.Purge()
 }
 
-// PurgeAysnc clears all the files from the cache and takes an optional channel
+// PurgeAsync clears all the files from the cache and takes an optional channel
 // to close when the purge has completed.
 func (c *FileCache) PurgeAsync(doneChan chan struct{}) {
 	go func() {
