@@ -55,13 +55,10 @@ func NewS3Cache(size int, baseDir string, s3Bucket string, awsRegion string, dow
 		return nil, err
 	}
 
-	downloader, err := newS3Downloader(awsRegion)
-	if err != nil {
-		log.Fatalf("Failed to initialize the S3 downloader: %s", err)
-	}
+	manager := NewS3RegionManagedDownloader(awsRegion)
 
 	fCache.DownloadFunc = func(fname string, localPath string) error {
-		return S3Download(fname, localPath, s3Bucket, downloader, downloadTimeout)
+		return manager.Download(fname, localPath, downloadTimeout)
 	}
 
 	return fCache, nil
