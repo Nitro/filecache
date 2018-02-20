@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -175,6 +176,7 @@ func (c *FileCache) MaybeDownload(filename string) error {
 // cache. This builds a cache structure of up to 256 directories, each beginning
 // with the first 2 letters of the FNV32 hash of the filename. This is then joined
 // to the base dir and MD5 hashed filename to form the cache path for each file.
+// It preserves the file extension (if present)
 //
 // e.g. /base_dir/2b/b0804ec967f48520697662a204f5fe72
 //
@@ -182,7 +184,14 @@ func (c *FileCache) GetFileName(filename string) string {
 	hashedFilename := md5.Sum([]byte(filename))
 	hashedDir := fnv.New32().Sum([]byte(filename))
 
-	file := fmt.Sprintf("%x", hashedFilename)
+	var extension string
+	// Look in the last 5 characters for a . and extension
+	lastDot := strings.LastIndexByte(filename, '.')
+	if lastDot > len(filename)-5 {
+		extension = filename[lastDot : len(filename)]
+	}
+
+	file := fmt.Sprintf("%x%s", hashedFilename, extension)
 	dir := fmt.Sprintf("%x", hashedDir[:1])
 	return filepath.Join(c.BaseDir, dir, filepath.FromSlash(path.Clean("/"+file)))
 }
