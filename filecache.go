@@ -47,10 +47,13 @@ func New(size int, baseDir string) (*FileCache, error) {
 	return fCache, nil
 }
 
-// NewS3Cache returns a cache where the DownloadFunc will pull files from a
-// specified S3 bucket. Bubbles up errors from the Hashicrorp LRU library when
-// something goes wrong there.
-func NewS3Cache(size int, baseDir string, s3Bucket string, awsRegion string, downloadTimeout time.Duration) (*FileCache, error) {
+// NewS3Cache returns a cache where the DownloadFunc will pull files from
+// S3 buckets. Bucket names are passed at the first part of the path in
+// files requested from the cache. Bubbles up errors from the Hashicrorp LRU
+// library when something goes wrong there.
+func NewS3Cache(size int, baseDir string, awsRegion string,
+	downloadTimeout time.Duration) (*FileCache, error) {
+
 	fCache, err := New(size, baseDir)
 	if err != nil {
 		return nil, err
@@ -188,7 +191,7 @@ func (c *FileCache) GetFileName(filename string) string {
 	// Look in the last 5 characters for a . and extension
 	lastDot := strings.LastIndexByte(filename, '.')
 	if lastDot > len(filename)-5 {
-		extension = filename[lastDot : len(filename)]
+		extension = filename[lastDot:len(filename)]
 	}
 
 	file := fmt.Sprintf("%x%s", hashedFilename, extension)
