@@ -245,4 +245,24 @@ var _ = Describe("Filecache", func() {
 			Expect(didRun).To(BeTrue())
 		})
 	})
+
+	Describe("GetFileName()", func() {
+		BeforeEach(func() {
+			cache, _ = NewS3Cache(10, ".", "gondor-north-1", 1*time.Millisecond)
+		})
+
+		It("appends a default extension when there is not one on the original file", func() {
+			cache.DefaultExtension = ".foo"
+			fname := cache.GetFileName("missing-an-extension")
+
+			Expect(fname).To(HaveSuffix(".foo"))
+		})
+
+		It("doesn't append the default extension when the original has one", func() {
+			cache.DefaultExtension = ".foo"
+			fname := cache.GetFileName("has-an-extension.asdf")
+
+			Expect(fname).To(HaveSuffix(".asdf"))
+		})
+	})
 })

@@ -18,12 +18,13 @@ import (
 
 // FileCache is a wrapper for hashicorp/golang-lru
 type FileCache struct {
-	BaseDir      string
-	Cache        *lru.Cache
-	Waiting      map[string]chan struct{}
-	WaitLock     sync.Mutex
-	DownloadFunc func(fname string, localPath string) error
-	OnEvict      func(key interface{}, value interface{})
+	BaseDir          string
+	Cache            *lru.Cache
+	Waiting          map[string]chan struct{}
+	WaitLock         sync.Mutex
+	DownloadFunc     func(fname string, localPath string) error
+	OnEvict          func(key interface{}, value interface{})
+	DefaultExtension string // Will be appended to cached files in the local dir
 }
 
 // New returns a properly configured cache. Bubbles up errors from the Hashicrorp
@@ -187,10 +188,12 @@ func (c *FileCache) GetFileName(filename string) string {
 	hashedFilename := md5.Sum([]byte(filename))
 	hashedDir := fnv.New32().Sum([]byte(filename))
 
-	var extension string
+	// If we don't find an original file extension, we'll default to this one
+	extension := c.DefaultExtension
+
 	// Look in the last 5 characters for a . and extension
 	lastDot := strings.LastIndexByte(filename, '.')
-	if lastDot > len(filename)-5 {
+	if lastDot > len(filename)-6 {
 		extension = filename[lastDot:len(filename)]
 	}
 
