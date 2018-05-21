@@ -2,6 +2,7 @@ package filecache_test
 
 import (
 	"context"
+	"time"
 
 	. "github.com/Nitro/filecache"
 
@@ -47,6 +48,16 @@ var _ = Describe("S3", func() {
 			Expect(err).To(BeNil())
 
 			Expect(dLoader1).To(Equal(dLoader2))
+		})
+
+		It("returns an error when trying to fetch a file which doesn't exist", func() {
+			err := manager.Download("non-existent-bucket/foo.pdf", "foo.pdf", 1*time.Second)
+			Expect(err.Error()).To(ContainSubstring("Could not fetch from S3"))
+		})
+
+		It("returns an error when getting a 0 length file", func() {
+			err := manager.Download("nitro-junk/foo.pdf", "foo.pdf", 1*time.Second)
+			Expect(err.Error()).To(ContainSubstring("0 length file received from S3"))
 		})
 	})
 })

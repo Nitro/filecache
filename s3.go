@@ -2,6 +2,7 @@ package filecache
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -132,9 +133,12 @@ func (m *S3RegionManagedDownloader) Download(fname string, localPath string, dow
 			Key:    aws.String(fname),
 		},
 	)
-
 	if err != nil {
 		return fmt.Errorf("Could not fetch from S3: %s", err)
+	}
+
+	if numBytes < 1 {
+		return errors.New("0 length file received from S3")
 	}
 
 	log.Debugf("Took %s to download %d from S3 for %s", time.Since(startTime), numBytes, fname)
