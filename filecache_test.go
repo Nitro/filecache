@@ -264,5 +264,16 @@ var _ = Describe("Filecache", func() {
 
 			Expect(fname).To(HaveSuffix(".asdf"))
 		})
+
+		It("prepends a directory to the file path with its name being the first byte of the FNV32 hash of the file name", func() {
+			fname1 := cache.GetFileName("james_joyce.pdf")
+			fname2 := cache.GetFileName("oscar_wilde.pdf")
+
+			dir1 := filepath.Dir(fname1)
+			dir2 := filepath.Dir(fname2)
+
+			Expect(dir1).To(Equal("d3"))
+			Expect(dir2).To(Equal("dc"))
+		})
 	})
 })
