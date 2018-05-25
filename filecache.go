@@ -186,7 +186,13 @@ func (c *FileCache) MaybeDownload(filename string) error {
 //
 func (c *FileCache) GetFileName(filename string) string {
 	hashedFilename := md5.Sum([]byte(filename))
-	hashedDir := fnv.New32().Sum([]byte(filename))
+	fnvHasher := fnv.New32()
+	// The current implementation of fnv.New32().Write never returns a non-nil error
+	_, err := fnvHasher.Write([]byte(filename))
+	if err != nil {
+		log.Errorf("Failed to compute the fnv hash: %s", err)
+	}
+	hashedDir := fnvHasher.Sum(nil)
 
 	// If we don't find an original file extension, we'll default to this one
 	extension := c.DefaultExtension
@@ -194,7 +200,7 @@ func (c *FileCache) GetFileName(filename string) string {
 	// Look in the last 5 characters for a . and extension
 	lastDot := strings.LastIndexByte(filename, '.')
 	if lastDot > len(filename)-6 {
-		extension = filename[lastDot:len(filename)]
+		extension = filename[lastDot:]
 	}
 
 	file := fmt.Sprintf("%x%s", hashedFilename, extension)
