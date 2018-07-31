@@ -2,6 +2,7 @@ package filecache_test
 
 import (
 	"context"
+	"os"
 	"time"
 
 	. "github.com/Nitro/filecache"
@@ -13,12 +14,20 @@ import (
 var _ = Describe("S3", func() {
 	var (
 		manager *S3RegionManagedDownloader
+
+		localFile *os.File
 	)
 
 	BeforeEach(func() {
 		// Reset between runs
 		manager = NewS3RegionManagedDownloader("us-west-2")
+
+		var err error
+		localFile, err = os.Create("foo.pdf")
+		Expect(err).To(BeNil())
 	})
+
+	AfterEach(func() { localFile.Close() })
 
 	Describe("NewS3RegionManagedDownloader()", func() {
 		It("returns a properly configured instance", func() {
@@ -51,12 +60,12 @@ var _ = Describe("S3", func() {
 		})
 
 		It("returns an error when trying to fetch a file which doesn't exist", func() {
-			err := manager.Download("non-existent-bucket/foo.pdf", "foo.pdf", 1*time.Second)
+			err := manager.Download(&DownloadRecord{Path: "non-existent-bucket/foo.pdf"}, localFile, 1*time.Second)
 			Expect(err.Error()).To(ContainSubstring("Could not fetch from S3"))
 		})
 
 		It("returns an error when getting a 0 length file", func() {
-			err := manager.Download("nitro-junk/foo.pdf", "foo.pdf", 1*time.Second)
+			err := manager.Download(&DownloadRecord{Path: "nitro-junk/foo.pdf"}, localFile, 1*time.Second)
 			Expect(err.Error()).To(ContainSubstring("0 length file received from S3"))
 		})
 	})

@@ -1,14 +1,13 @@
-package filecache_test
+package filecache
 
 import (
 	"errors"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
-
-	. "github.com/Nitro/filecache"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -27,7 +26,7 @@ var _ = Describe("Filecache", func() {
 		cacheFile           string
 	)
 
-	mockDownloader := func(fname string, localPath string) error {
+	mockDownloader := func(downloadRecord *DownloadRecord, localPath string) error {
 		if downloadShouldError {
 			return errors.New("Oh no! Tragedy!")
 		}
@@ -42,7 +41,7 @@ var _ = Describe("Filecache", func() {
 	}
 
 	BeforeEach(func() {
-		cache, err = NewS3Cache(10, ".", "gondor-north-1", 1*time.Millisecond)
+		cache, err = New(10, ".", DownloadTimeout(1*time.Millisecond), S3Downloader("gondor-north-1"))
 		Expect(err).To(BeNil())
 
 		// Reset between runs
@@ -52,72 +51,79 @@ var _ = Describe("Filecache", func() {
 	})
 
 	Describe("New()", func() {
-		It("returns a properly configured instance", func() {
+		BeforeEach(func() {
 			cache, err = New(10, ".")
-
 			Expect(err).To(BeNil())
+		})
+		It("returns a properly configured instance", func() {
 			Expect(cache.Waiting).NotTo(BeNil())
 			Expect(cache.Cache).NotTo(BeNil())
-			Expect(cache.DownloadFunc("junk", "junk")).To(BeNil())
+			Expect(cache.Cache.Len()).To(Equal(0))
+			Expect(cache.BaseDir).To(Equal("."))
+		})
+
+		It("fails to download stuff", func() {
+			Expect(cache.DownloadFunc(&DownloadRecord{Path: "junk"}, "junk")).Should(Not(Succeed()))
 		})
 	})
 
-	Describe("NewS3Cache()", func() {
+	Describe("New() with S3Downloader and DropboxDownloader", func() {
 		It("returns a properly configured instance", func() {
+			cache, err = New(10, ".", S3Downloader("gondor-north-1"), DropboxDownloader())
 			Expect(err).To(BeNil())
-			Expect(cache.Waiting).NotTo(BeNil())
-			Expect(cache.Cache).NotTo(BeNil())
-			Expect(cache.DownloadFunc).NotTo(BeNil())
+			Expect(cache.downloaders[DownloadMangerS3]).To(Not(BeNil()))
+			Expect(cache.downloaders[DownloadMangerDropbox]).To(Not(BeNil()))
 		})
 	})
 
 	Describe("Contains()", func() {
 		It("identifies keys that are not present", func() {
-			Expect(cache.Contains("gandalf")).To(BeFalse())
+			Expect(cache.Contains(&DownloadRecord{Path: "gandalf"})).To(BeFalse())
 		})
 
 		It("identifies keys that are  present", func() {
 			cache.Cache.Add("gandalf", true)
-			Expect(cache.Contains("gandalf")).To(BeTrue())
+			Expect(cache.Contains(&DownloadRecord{Path: "gandalf"})).To(BeTrue())
 		})
 	})
 
 	Describe("MaybeDownload()", func() {
 		BeforeEach(func() {
-			cache, err = NewS3Cache(10, ".", "gondor-north-1", 1*time.Millisecond)
+			cache, err = New(10, ".", S3Downloader("gondor-north-1"), DownloadTimeout(1*time.Millisecond))
+			Expect(err).To(BeNil())
 			cache.DownloadFunc = mockDownloader
 
 			downloadCount = 0
 		})
 
 		It("downloads a file that's not in the cache", func() {
-			err = cache.MaybeDownload("bilbo")
+			err = cache.MaybeDownload(&DownloadRecord{Path: "bilbo"})
 
 			Expect(err).To(BeNil())
 			Expect(didDownload).To(BeTrue())
-			Expect(cache.Contains("bilbo")).To(BeTrue())
+			Expect(cache.Contains(&DownloadRecord{Path: "bilbo"})).To(BeTrue())
 		})
 
 		It("returns an error when the backing downloader failed", func() {
 			downloadShouldError = true
 
-			err = cache.MaybeDownload("bilbo")
+			err = cache.MaybeDownload(&DownloadRecord{Path: "bilbo"})
 			Expect(err).To(HaveOccurred())
 		})
 
 		It("does not leave garbage in 'Waiting'", func() {
-			cache.MaybeDownload("bilbo")
+			cache.MaybeDownload(&DownloadRecord{Path: "bilbo"})
 
 			_, ok := cache.Waiting["bilbo"]
 			Expect(ok).To(BeFalse())
 		})
 
 		It("adds entries to the cache after downloading", func() {
-			Expect(cache.Contains("bilbo")).NotTo(BeTrue())
+			Expect(cache.Contains(&DownloadRecord{Path: "bilbo"})).NotTo(BeTrue())
 
-			cache.MaybeDownload("bilbo")
+			cache.MaybeDownload(&DownloadRecord{Path: "bilbo"})
 
-			Expect(cache.Contains("bilbo")).To(BeTrue())
+			Expect(cache.Contains(&DownloadRecord{Path: "bilbo"})).To(BeTrue())
 		})
 
 		It("doesn't duplicate a download that started already", func() {
@@ -129,7 +135,7 @@ var _ = Describe("Filecache", func() {
 			var wg sync.WaitGroup
 			for i := 0; i < 10; i++ {
 				wg.Add(1)
-				go func() { cache.MaybeDownload("bilbo"); wg.Done() }()
+				go func() { cache.MaybeDownload(&DownloadRecord{Path: "bilbo"}); wg.Done() }()
 			}
 			wg.Wait()
 
@@ -142,7 +148,7 @@ var _ = Describe("Filecache", func() {
 			var wg sync.WaitGroup
 			for i := 0; i < 10; i++ {
 				wg.Add(1)
-				go func() { cache.MaybeDownload("bilbo"); wg.Done() }()
+				go func() { cache.MaybeDownload(&DownloadRecord{Path: "bilbo"}); wg.Done() }()
 			}
 			wg.Wait()
 
@@ -154,7 +160,7 @@ var _ = Describe("Filecache", func() {
 
 	Describe("Fetch()", func() {
 		BeforeEach(func() {
-			cache, err = NewS3Cache(10, ".", "gondor-north-1", 1*time.Millisecond)
+			cache, err = New(10, ".", S3Downloader("gondor-north-1"), DownloadTimeout(1*time.Millisecond))
 			cache.DownloadFunc = mockDownloader
 			didDownload = false
 		})
@@ -162,24 +168,24 @@ var _ = Describe("Filecache", func() {
 		It("doesn't try to download files we already have", func() {
 			cache.Cache.Add("aragorn", true)
 
-			Expect(cache.Fetch("aragorn")).To(BeTrue())
+			Expect(cache.Fetch(&DownloadRecord{Path: "aragorn"})).To(BeTrue())
 			Expect(didDownload).To(BeFalse())
 		})
 
 		It("downloads the file when we don't have it", func() {
-			Expect(cache.Fetch("aragorn")).To(BeTrue())
+			Expect(cache.Fetch(&DownloadRecord{Path: "aragorn"})).To(BeTrue())
 			Expect(didDownload).To(BeTrue())
 		})
 	})
 
 	Describe("FetchNewerThan()", func() {
 		BeforeEach(func() {
-			cache, err = NewS3Cache(10, os.TempDir(), "gondor-north-1", 1*time.Millisecond)
+			cache, err = New(10, os.TempDir(), S3Downloader("gondor-north-1"), DownloadTimeout(1*time.Millisecond))
 			cache.DownloadFunc = mockDownloader
 			didDownload = false
 
 			// Manually write the file to the cache
-			cacheFile = filepath.Join(os.TempDir(), cache.GetFileName("aragorn"))
+			cacheFile = filepath.Join(os.TempDir(), cache.GetFileName(&DownloadRecord{Path: "aragorn"}))
 			os.MkdirAll(filepath.Dir(cacheFile), 0755)
 			ioutil.WriteFile(cacheFile, []byte(`some bytes`), 0644)
 		})
@@ -189,40 +195,40 @@ var _ = Describe("Filecache", func() {
 		})
 
 		It("doesn't try to download files we already have if they are new enough", func() {
-			cache.Cache.Add("aragorn", cache.GetFileName("aragorn"))
-			os.MkdirAll(filepath.Dir(cache.GetFileName("aragorn")), 0755)
-			ioutil.WriteFile(cache.GetFileName("aragorn"), []byte("aragorn"), 0644)
+			cache.Cache.Add("aragorn", cache.GetFileName(&DownloadRecord{Path: "aragorn"}))
+			os.MkdirAll(filepath.Dir(cache.GetFileName(&DownloadRecord{Path: "aragorn"})), 0755)
+			ioutil.WriteFile(cache.GetFileName(&DownloadRecord{Path: "aragorn"}), []byte("aragorn"), 0644)
 
-			Expect(cache.FetchNewerThan("aragorn", time.Now().Add(-10*time.Minute))).To(BeTrue())
+			Expect(cache.FetchNewerThan(&DownloadRecord{Path: "aragorn"}, time.Now().Add(-10*time.Minute))).To(BeTrue())
 			Expect(didDownload).To(BeFalse())
 		})
 
 		It("downloads the file when it's too old", func() {
-			cache.Cache.Add("aragorn", cache.GetFileName("aragorn"))
-			Expect(cache.FetchNewerThan("aragorn", time.Now().Add(10*time.Minute))).To(BeTrue())
+			cache.Cache.Add("aragorn", cache.GetFileName(&DownloadRecord{Path: "aragorn"}))
+			Expect(cache.FetchNewerThan(&DownloadRecord{Path: "aragorn"}, time.Now().Add(10*time.Minute))).To(BeTrue())
 			Expect(didDownload).To(BeTrue())
 		})
 	})
 
 	Describe("Reload()", func() {
 		BeforeEach(func() {
-			cache, err = NewS3Cache(10, os.TempDir(), "gondor-north-1", 1*time.Millisecond)
+			cache, err = New(10, os.TempDir(), S3Downloader("gondor-north-1"), DownloadTimeout(1*time.Millisecond))
 			cache.DownloadFunc = mockDownloader
-			f, _ := os.OpenFile(cache.GetFileName("aragorn"), os.O_CREATE, 0644)
+			f, _ := os.OpenFile(cache.GetFileName(&DownloadRecord{Path: "aragorn"}), os.O_CREATE, 0644)
 			f.Close()
 			didDownload = false
 		})
 
 		It("downloads the file even when we have it", func() {
-			cache.Cache.Add("aragorn", cache.GetFileName("aragorn"))
-			Expect(cache.Reload("aragorn")).To(BeTrue())
+			cache.Cache.Add("aragorn", cache.GetFileName(&DownloadRecord{Path: "aragorn"}))
+			Expect(cache.Reload(&DownloadRecord{Path: "aragorn"})).To(BeTrue())
 			Expect(didDownload).To(BeTrue())
 		})
 	})
 
 	Describe("onEvictDelete()", func() {
 		BeforeEach(func() {
-			cache, _ = NewS3Cache(10, ".", "gondor-north-1", 1*time.Millisecond)
+			cache, _ = New(10, ".", S3Downloader("gondor-north-1"), DownloadTimeout(1*time.Millisecond))
 		})
 
 		It("calls the downstream eviction callback if it's configured", func() {
@@ -248,32 +254,67 @@ var _ = Describe("Filecache", func() {
 
 	Describe("GetFileName()", func() {
 		BeforeEach(func() {
-			cache, _ = NewS3Cache(10, ".", "gondor-north-1", 1*time.Millisecond)
+			cache, _ = New(10, ".", S3Downloader("gondor-north-1"), DownloadTimeout(1*time.Millisecond))
 		})
 
 		It("appends a default extension when there is not one on the original file", func() {
 			cache.DefaultExtension = ".foo"
-			fname := cache.GetFileName("missing-an-extension")
+			fname := cache.GetFileName(&DownloadRecord{Path: "missing-an-extension"})
 
 			Expect(fname).To(HaveSuffix(".foo"))
 		})
 
 		It("doesn't append the default extension when the original has one", func() {
 			cache.DefaultExtension = ".foo"
-			fname := cache.GetFileName("has-an-extension.asdf")
+			fname := cache.GetFileName(&DownloadRecord{Path: "has-an-extension.asdf"})
 
 			Expect(fname).To(HaveSuffix(".asdf"))
 		})
 
 		It("prepends a directory to the file path with its name being the first byte of the FNV32 hash of the file name", func() {
-			fname1 := cache.GetFileName("james_joyce.pdf")
-			fname2 := cache.GetFileName("oscar_wilde.pdf")
+			fname1 := cache.GetFileName(&DownloadRecord{Path: "james_joyce.pdf"})
+			fname2 := cache.GetFileName(&DownloadRecord{Path: "oscar_wilde.pdf"})
 
 			dir1 := filepath.Dir(fname1)
 			dir2 := filepath.Dir(fname2)
 
 			Expect(dir1).To(Equal("d3"))
 			Expect(dir2).To(Equal("dc"))
+		})
+	})
+
+	Describe("NewDownloadRecord()", func() {
+		url, _ := url.Parse("/documents/testing-bucket/foo-file.pdf")
+		dr, err := NewDownloadRecord(url.Path, nil)
+
+		It("should not return an error", func() {
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("strips leading '/documents'", func() {
+			Expect(dr.Path).To(Not(ContainSubstring("/documents")))
+		})
+
+		// TODO: Revisit this in the future!
+		It("doesn't strip the bucket name from the path", func() {
+			Expect(dr.Path).To(ContainSubstring("testing-bucket/"))
+		})
+
+		It("doesn't return a leading slash", func() {
+			Expect(dr.Path).To(Not(HavePrefix("/")))
+		})
+
+		It("returns an error if the filename doesn't have enough components", func() {
+			url, _ := url.Parse("/documents/foo-file.pdf")
+			dr, err = NewDownloadRecord(url.Path, nil)
+			Expect(err).Should(HaveOccurred())
+		})
+
+		It("uses the dropbox downloader for documents with bucket = 'dropbox'", func() {
+			url, _ := url.Parse("/documents/dropbox/foo-file.pdf")
+			dr, err = NewDownloadRecord(url.Path, nil)
+			Expect(err).Should(Succeed())
+			Expect(dr.Manager).Should(BeEquivalentTo(DownloadMangerDropbox))
 		})
 	})
 })
