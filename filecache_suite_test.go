@@ -1,4 +1,4 @@
-package filecache_test
+package filecache
 
 import (
 	. "github.com/onsi/ginkgo"

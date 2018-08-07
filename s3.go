@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -79,18 +78,11 @@ func (m *S3RegionManagedDownloader) GetDownloader(ctx context.Context, bucket st
 	return dLoader, nil
 }
 
-func hasDirectoryComponent(localPath string) bool {
-	parts := strings.Split(localPath, "/")
-	if len(parts) == 2 && parts[0][0] == '.' {
-		return false
-	}
-	return len(parts) > 1
-}
-
-// Download will fetch a file from the specified bucket into a localPath. It
+// Download will fetch a file from the specified bucket into a localFile. It
 // will create sub-directories as needed inside that path in order to store the
 // complete path name of the file.
-func (m *S3RegionManagedDownloader) Download(fname string, localPath string, downloadTimeout time.Duration) error {
+func (m *S3RegionManagedDownloader) Download(downloadRecord *DownloadRecord, localFile *os.File, downloadTimeout time.Duration) error {
+	fname := downloadRecord.Path
 
 	// The S3 bucket is the first part of the path, everything else is filename
 	parts := strings.Split(fname, "/")
@@ -99,20 +91,6 @@ func (m *S3RegionManagedDownloader) Download(fname string, localPath string, dow
 	}
 	bucket := parts[0]
 	fname = strings.Join(parts[1:], "/")
-
-	if hasDirectoryComponent(localPath) {
-		log.Debugf("MkdirAll() on %s", filepath.Dir(localPath))
-		err := os.MkdirAll(filepath.Dir(localPath), 0755)
-		if err != nil {
-			return fmt.Errorf("Could not create local Directories: %s", err)
-		}
-	}
-
-	file, err := os.Create(localPath)
-	if err != nil {
-		return fmt.Errorf("Could not create local File: %s", err)
-	}
-	defer file.Close()
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), downloadTimeout)
 	defer cancelFunc()
@@ -127,7 +105,7 @@ func (m *S3RegionManagedDownloader) Download(fname string, localPath string, dow
 	startTime := time.Now()
 	numBytes, err := downloader.DownloadWithContext(
 		ctx,
-		file,
+		localFile,
 		&s3.GetObjectInput{
 			Bucket: aws.String(bucket),
 			Key:    aws.String(fname),
