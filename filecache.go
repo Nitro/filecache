@@ -356,9 +356,34 @@ func (c *FileCache) GetFileName(downloadRecord *DownloadRecord) string {
 		extension = downloadRecord.Path[lastDot:]
 	}
 
-	file := fmt.Sprintf("%x%s", hashedFilename, extension)
+	var file string
+	if len(downloadRecord.Args) != 0 {
+		// in order to avoid file cache collision on the same filename, if we
+		// have existing HTTP headers into the downloadRecord.Args append their
+		// hashed value between the hashedFilename and extension with _ prefix
+		hashedArgs := getHashedArguments(downloadRecord)
+		file = fmt.Sprintf("%x_%x%s", hashedFilename, hashedArgs, extension)
+	} else {
+		file = fmt.Sprintf("%x%s", hashedFilename, extension)
+	}
+
 	dir := fmt.Sprintf("%x", hashedDir[:1])
 	return filepath.Join(c.BaseDir, dir, filepath.FromSlash(path.Clean("/"+file)))
+}
+
+// getHashedArguments computes the MD5 sum of all the arguments existing in a
+// downloadRecord and return the hashed value as a string
+func getHashedArguments(downloadRecord *DownloadRecord) string {
+	var builder strings.Builder
+	for key, _ := range downloadRecord.Args {
+		_, err := builder.WriteString(downloadRecord.Args[key])
+		if err != nil {
+			continue
+		}
+	}
+
+	hashedArgs := md5.Sum([]byte(builder.String()))
+	return string(hashedArgs[:])
 }
 
 // bucketToDownloadManager matches the given bucket to a suitable download manager
