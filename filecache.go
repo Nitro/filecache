@@ -24,6 +24,7 @@ const (
 
 var (
 	errInvalidURLPath = errors.New("invalid URL path")
+	HashableArgs      = []string{dropboxAccessToken}
 )
 
 type DownloadManager int
@@ -361,7 +362,7 @@ func (c *FileCache) GetFileName(downloadRecord *DownloadRecord) string {
 		// in order to avoid file cache collision on the same filename, if we
 		// have existing HTTP headers into the downloadRecord.Args append their
 		// hashed value between the hashedFilename and extension with _ prefix
-		hashedArgs := getHashedArguments(downloadRecord)
+		hashedArgs := downloadRecord.GetHashedArguments()
 		file = fmt.Sprintf("%x_%x%s", hashedFilename, hashedArgs, extension)
 	} else {
 		file = fmt.Sprintf("%x%s", hashedFilename, extension)
@@ -371,14 +372,16 @@ func (c *FileCache) GetFileName(downloadRecord *DownloadRecord) string {
 	return filepath.Join(c.BaseDir, dir, filepath.FromSlash(path.Clean("/"+file)))
 }
 
-// getHashedArguments computes the MD5 sum of all the arguments existing in a
-// downloadRecord and return the hashed value as a string
-func getHashedArguments(downloadRecord *DownloadRecord) string {
+// GetHashedArguments computes the MD5 sum of the arguments existing in a
+// downloadRecord matching HashableArgs array and return the hashed value as a string
+func (dr *DownloadRecord) GetHashedArguments() string {
 	var builder strings.Builder
-	for key, _ := range downloadRecord.Args {
-		_, err := builder.WriteString(downloadRecord.Args[key])
-		if err != nil {
-			continue
+	for _, hashableArg := range HashableArgs {
+		if arg, ok := dr.Args[hashableArg]; ok {
+			_, err := builder.WriteString(arg)
+			if err != nil {
+				continue
+			}
 		}
 	}
 
