@@ -1,11 +1,13 @@
 package filecache
 
 import (
+	"crypto/md5"
 	"errors"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -281,6 +283,31 @@ var _ = Describe("Filecache", func() {
 			Expect(dir1).To(Equal("d3"))
 			Expect(dir2).To(Equal("dc"))
 		})
+
+		Context("With DowloadRecord with existing Args", func() {
+			It("should include the hashed arguments and extension with _ prefix", func() {
+				cache, _ = New(10, "mordor-south-1", DropboxDownloader(), DownloadTimeout(1*time.Millisecond))
+				args := map[string]string{
+					"Location":  "Mordor",
+					"Character": "Gollum",
+				}
+				fname := cache.GetFileName(&DownloadRecord{Path: "golum-arrived.pub", Args: args})
+
+				Expect(fname).To(HavePrefix("mordor-south-1"))
+				Expect(len(strings.Split(fname, "_"))).To(Equal(2))
+				Expect(fname).To(ContainSubstring("_"))
+				Expect(fname).To(HaveSuffix(".pub"))
+
+			})
+
+			It("should not included hashed arguments and _ when Args is nil", func() {
+				cache, _ = New(10, "mordor-south-1", DropboxDownloader(), DownloadTimeout(1*time.Millisecond))
+				fname := cache.GetFileName(&DownloadRecord{Path: "golum-arrived.pub", Args: nil})
+				Expect(fname).To(HavePrefix("mordor-south-1"))
+				Expect(fname).NotTo(ContainSubstring("_"))
+				Expect(fname).To(HaveSuffix(".pub"))
+			})
+		})
 	})
 
 	Describe("NewDownloadRecord()", func() {
@@ -315,6 +342,21 @@ var _ = Describe("Filecache", func() {
 			dr, err = NewDownloadRecord(url.Path, nil)
 			Expect(err).Should(Succeed())
 			Expect(dr.Manager).Should(BeEquivalentTo(DownloadMangerDropbox))
+		})
+	})
+
+	Describe("GetHashedArguments()", func() {
+		It("should hash only the HashableArgs", func() {
+			args := map[string]string{
+				"DropboxAccessToken": "Frodo",
+				"S3AccessToken":      "Bilbon",
+			}
+			mockRecord := &DownloadRecord{Manager: DownloadMangerDropbox, Path: "", Args: args}
+			got := mockRecord.GetHashedArguments()
+			sum := md5.Sum([]byte(args["DropboxAccessToken"]))
+			want := string(sum[:])
+
+			Expect(got).To(Equal(want))
 		})
 	})
 })
