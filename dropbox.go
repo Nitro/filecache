@@ -32,8 +32,9 @@ func DropboxDownload(downloadRecord *DownloadRecord, localFile *os.File, downloa
 	if !strings.HasPrefix(downloadRecord.Path, "dropbox/") {
 		return errors.New("missing dropbox prefix in file path")
 	}
-	// Leave the leading '/' in place, because Dropbox expects absolute paths
-	filePath := strings.TrimLeft(downloadRecord.Path, "dropbox")
+
+	// In the case of Dropbox files, the path will contain the file ID
+	fileID := "id:" + strings.TrimLeft(downloadRecord.Path, "dropbox/")
 
 	// Ripped off from here https://github.com/dropbox/dropbox-sdk-go-unofficial/blob/7afa861bfde5a348d765522b303b6fbd9d250155/dropbox/sdk.go#L153-L157
 	// because we have to set the `Client` field manually in `dropbox.Config` if we want to configure
@@ -53,7 +54,7 @@ func DropboxDownload(downloadRecord *DownloadRecord, localFile *os.File, downloa
 	)
 
 	startTime := time.Now()
-	_, content, err := dbx.Download(files.NewDownloadArg(filePath))
+	_, content, err := dbx.Download(files.NewDownloadArg(fileID))
 	if err != nil {
 		return fmt.Errorf("could not download file: %s", err)
 	}
