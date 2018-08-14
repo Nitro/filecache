@@ -417,9 +417,15 @@ func NewDownloadRecord(url string, args map[string]string) (*DownloadRecord, err
 		return nil, errInvalidURLPath
 	}
 
+	// Make sure all arg names are lower case
+	normalisedArgs := make(map[string]string, len(args))
+	for arg, value := range args {
+		normalisedArgs[strings.ToLower(arg)] = value
+	}
+
 	return &DownloadRecord{
 		Manager: bucketToDownloadManager(pathParts[0]),
 		Path:    path,
-		Args:    args,
+		Args:    normalisedArgs,
 	}, nil
 }

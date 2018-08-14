@@ -15,15 +15,15 @@ import (
 	"golang.org/x/oauth2"
 )
 
-const (
-	dropboxAccessToken = "DropboxAccessToken"
+var (
+	dropboxAccessToken = strings.ToLower("DropboxAccessToken")
 )
 
 // DropboxDownload will fetch a file from the specified Dropbox path into a localFile. It
 // will create sub-directories as needed inside that path in order to store the
 // complete path name of the file.
 func DropboxDownload(downloadRecord *DownloadRecord, localFile *os.File, downloadTimeout time.Duration) error {
-	accessToken := downloadRecord.Args[strings.ToLower(dropboxAccessToken)]
+	accessToken := downloadRecord.Args[dropboxAccessToken]
 	if accessToken == "" {
 		return fmt.Errorf("missing %q header", dropboxAccessToken)
 	}
