@@ -3,6 +3,7 @@ package filecache
 import (
 	"crypto/md5"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -349,12 +350,24 @@ var _ = Describe("Filecache", func() {
 		It("should hash only the HashableArgs", func() {
 			args := map[string]string{
 				"DropboxAccessToken": "Frodo",
-				"S3AccessToken":      "Bilbon",
+				"FoobarAccessToken":  "Bilbo",
 			}
-			mockRecord := &DownloadRecord{Manager: DownloadMangerDropbox, Path: "", Args: args}
-			got := mockRecord.GetHashedArguments()
+			mockRecord, _ := NewDownloadRecord("/documents/dropbox/foo-file.pdf", args)
+			got := fmt.Sprintf("%x", mockRecord.GetHashedArguments())
 			sum := md5.Sum([]byte(args["DropboxAccessToken"]))
-			want := string(sum[:])
+			want := fmt.Sprintf("%x", sum[:])
+
+			Expect(got).To(Equal(want))
+		})
+
+		It("should ignore header name casing", func() {
+			args := map[string]string{
+				"Dropboxaccesstoken": "Frodo",
+			}
+			mockRecord, _ := NewDownloadRecord("/documents/dropbox/foo-file.pdf", args)
+			got := fmt.Sprintf("%x", mockRecord.GetHashedArguments())
+			sum := md5.Sum([]byte(args["Dropboxaccesstoken"]))
+			want := fmt.Sprintf("%x", sum[:])
 
 			Expect(got).To(Equal(want))
 		})
