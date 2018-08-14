@@ -24,16 +24,17 @@ const (
 
 var (
 	errInvalidURLPath = errors.New("invalid URL path")
-	HashableArgs      = []string{dropboxAccessToken}
+	HashableArgs      = map[string]struct{}{dropboxAccessToken: {}}
 )
 
 type DownloadManager int
 
 // DownloadRecord contains information about a file which will be downloaded
 type DownloadRecord struct {
-	Manager DownloadManager
-	Path    string
-	Args    map[string]string
+	Manager    DownloadManager
+	Path       string
+	Args       map[string]string
+	HashedArgs string
 }
 
 type RecordDownloaderFunc = func(downloadRecord *DownloadRecord, localFile *os.File) error
@@ -357,27 +358,26 @@ func (c *FileCache) GetFileName(downloadRecord *DownloadRecord) string {
 		extension = downloadRecord.Path[lastDot:]
 	}
 
-	var file string
+	var fileName string
 	if len(downloadRecord.Args) != 0 {
 		// in order to avoid file cache collision on the same filename, if we
 		// have existing HTTP headers into the downloadRecord.Args append their
 		// hashed value between the hashedFilename and extension with _ prefix
-		hashedArgs := downloadRecord.GetHashedArguments()
-		file = fmt.Sprintf("%x_%x%s", hashedFilename, hashedArgs, extension)
+		fileName = fmt.Sprintf("%x_%x%s", hashedFilename, downloadRecord.HashedArgs, extension)
 	} else {
-		file = fmt.Sprintf("%x%s", hashedFilename, extension)
+		fileName = fmt.Sprintf("%x%s", hashedFilename, extension)
 	}
 
 	dir := fmt.Sprintf("%x", hashedDir[:1])
-	return filepath.Join(c.BaseDir, dir, filepath.FromSlash(path.Clean("/"+file)))
+	return filepath.Join(c.BaseDir, dir, filepath.FromSlash(path.Clean("/"+fileName)))
 }
 
-// GetHashedArguments computes the MD5 sum of the arguments existing in a
+// getHashedArgs computes the MD5 sum of the arguments existing in a
 // downloadRecord matching HashableArgs array and return the hashed value as a string
-func (dr *DownloadRecord) GetHashedArguments() string {
+func getHashedArgs(args map[string]string) string {
 	var builder strings.Builder
-	for _, hashableArg := range HashableArgs {
-		if arg, ok := dr.Args[hashableArg]; ok {
+	for hashableArg := range HashableArgs {
+		if arg, ok := args[hashableArg]; ok {
 			_, err := builder.WriteString(arg)
 			if err != nil {
 				continue
@@ -417,15 +417,20 @@ func NewDownloadRecord(url string, args map[string]string) (*DownloadRecord, err
 		return nil, errInvalidURLPath
 	}
 
-	// Make sure all arg names are lower case
+	// Make sure all arg names are lower case and contain only the ones we recognise
 	normalisedArgs := make(map[string]string, len(args))
 	for arg, value := range args {
-		normalisedArgs[strings.ToLower(arg)] = value
+		normalisedArg := strings.ToLower(arg)
+		if _, ok := HashableArgs[normalisedArg]; !ok {
+			continue
+		}
+		normalisedArgs[normalisedArg] = value
 	}
 
 	return &DownloadRecord{
-		Manager: bucketToDownloadManager(pathParts[0]),
-		Path:    path,
-		Args:    normalisedArgs,
+		Manager:    bucketToDownloadManager(pathParts[0]),
+		Path:       path,
+		Args:       normalisedArgs,
+		HashedArgs: getHashedArgs(normalisedArgs),
 	}, nil
 }

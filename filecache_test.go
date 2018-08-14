@@ -260,6 +260,37 @@ var _ = Describe("Filecache", func() {
 			cache, _ = New(10, ".", S3Downloader("gondor-north-1"), DownloadTimeout(1*time.Millisecond))
 		})
 
+		It("fetches the expected file name for S3 downloads with nil args", func() {
+			url, _ := url.Parse("/documents/test-bucket/foo.bar")
+			dr, _ := NewDownloadRecord(url.Path, nil)
+			fname := cache.GetFileName(dr)
+
+			Expect(fname).To(Equal("4f/a197d51bc70c732281b46e122ff7af17.bar"))
+		})
+
+		It("fetches the expected file name for S3 downloads with non-nil args", func() {
+			url, _ := url.Parse("/documents/test-bucket/foo.bar")
+			args := map[string]string{
+				"DummyHeader": "SomeValue",
+			}
+			dr, _ := NewDownloadRecord(url.Path, args)
+			fname := cache.GetFileName(dr)
+
+			Expect(fname).To(Equal("4f/a197d51bc70c732281b46e122ff7af17.bar"))
+		})
+
+		It("fetches the expected file name for Dropbox downloads", func() {
+			args := map[string]string{
+				dropboxAccessToken: "KnockKnock",
+				"DummyHeader":      "SomeValue",
+			}
+			url, _ := url.Parse("/documents/dropbox/foo.bar")
+			dr, _ := NewDownloadRecord(url.Path, args)
+			fname := cache.GetFileName(dr)
+
+			Expect(fname).To(Equal("8b/5e92c8291b661710e0d1d25db4053f0d_1ff55f50db16da0ad21b8d68ce5aa8cb.bar"))
+		})
+
 		It("appends a default extension when there is not one on the original file", func() {
 			cache.DefaultExtension = ".foo"
 			fname := cache.GetFileName(&DownloadRecord{Path: "missing-an-extension"})
@@ -353,7 +384,7 @@ var _ = Describe("Filecache", func() {
 				"FoobarAccessToken":  "Bilbo",
 			}
 			mockRecord, _ := NewDownloadRecord("/documents/dropbox/foo-file.pdf", args)
-			got := fmt.Sprintf("%x", mockRecord.GetHashedArguments())
+			got := fmt.Sprintf("%x", mockRecord.HashedArgs)
 			sum := md5.Sum([]byte(args["DropboxAccessToken"]))
 			want := fmt.Sprintf("%x", sum[:])
 
@@ -365,7 +396,7 @@ var _ = Describe("Filecache", func() {
 				"Dropboxaccesstoken": "Frodo",
 			}
 			mockRecord, _ := NewDownloadRecord("/documents/dropbox/foo-file.pdf", args)
-			got := fmt.Sprintf("%x", mockRecord.GetHashedArguments())
+			got := fmt.Sprintf("%x", mockRecord.HashedArgs)
 			sum := md5.Sum([]byte(args["Dropboxaccesstoken"]))
 			want := fmt.Sprintf("%x", sum[:])
 
