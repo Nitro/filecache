@@ -29,7 +29,7 @@ var _ = Describe("Filecache", func() {
 		cacheFile           string
 	)
 
-	mockDownloader := func(downloadRecord *DownloadRecord, localPath string) error {
+	mockDownloader := func(dr *DownloadRecord, localPath string) error {
 		if downloadShouldError {
 			return errors.New("Oh no! Tragedy!")
 		}

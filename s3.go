@@ -81,8 +81,8 @@ func (m *S3RegionManagedDownloader) GetDownloader(ctx context.Context, bucket st
 // Download will fetch a file from the specified bucket into a localFile. It
 // will create sub-directories as needed inside that path in order to store the
 // complete path name of the file.
-func (m *S3RegionManagedDownloader) Download(downloadRecord *DownloadRecord, localFile *os.File, downloadTimeout time.Duration) error {
-	fname := downloadRecord.Path
+func (m *S3RegionManagedDownloader) Download(dr *DownloadRecord, localFile *os.File, downloadTimeout time.Duration) error {
+	fname := dr.Path
 
 	// The S3 bucket is the first part of the path, everything else is filename
 	parts := strings.Split(fname, "/")

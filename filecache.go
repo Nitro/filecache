@@ -37,7 +37,7 @@ type DownloadRecord struct {
 	HashedArgs string
 }
 
-type RecordDownloaderFunc = func(downloadRecord *DownloadRecord, localFile *os.File) error
+type RecordDownloaderFunc = func(dr *DownloadRecord, localFile *os.File) error
 
 // FileCache is a wrapper for hashicorp/golang-lru
 type FileCache struct {
@@ -45,7 +45,7 @@ type FileCache struct {
 	Cache            *lru.Cache
 	Waiting          map[string]chan struct{}
 	WaitLock         sync.Mutex
-	DownloadFunc     func(downloadRecord *DownloadRecord, localPath string) error
+	DownloadFunc     func(dr *DownloadRecord, localPath string) error
 	OnEvict          func(key interface{}, value interface{})
 	DefaultExtension string
 	DownloadTimeout  time.Duration
@@ -104,9 +104,9 @@ func DefaultExtension(ext string) option {
 // when something goes wrong there.
 func S3Downloader(awsRegion string) option {
 	return func(c *FileCache) error {
-		c.downloaders[DownloadMangerS3] = func(downloadRecord *DownloadRecord, localFile *os.File) error {
+		c.downloaders[DownloadMangerS3] = func(dr *DownloadRecord, localFile *os.File) error {
 			return NewS3RegionManagedDownloader(awsRegion).Download(
-				downloadRecord, localFile, c.DownloadTimeout,
+				dr, localFile, c.DownloadTimeout,
 			)
 		}
 
@@ -119,8 +119,8 @@ func S3Downloader(awsRegion string) option {
 // something goes wrong there.
 func DropboxDownloader() option {
 	return func(c *FileCache) error {
-		c.downloaders[DownloadMangerDropbox] = func(downloadRecord *DownloadRecord, localFile *os.File) error {
-			return DropboxDownload(downloadRecord, localFile, c.DownloadTimeout)
+		c.downloaders[DownloadMangerDropbox] = func(dr *DownloadRecord, localFile *os.File) error {
+			return DropboxDownload(dr, localFile, c.DownloadTimeout)
 		}
 
 		return nil
@@ -137,7 +137,7 @@ func hasDirectoryComponent(localPath string) bool {
 
 // download is a generic wrapper which performs common actions before delegating to the
 // specific downloader implementations
-func (c *FileCache) download(downloadRecord *DownloadRecord, localPath string) error {
+func (c *FileCache) download(dr *DownloadRecord, localPath string) error {
 	if hasDirectoryComponent(localPath) {
 		// Make sure the path to the local file exists
 		log.Debugf("MkdirAll() on %s", filepath.Dir(localPath))
@@ -153,11 +153,11 @@ func (c *FileCache) download(downloadRecord *DownloadRecord, localPath string) e
 	}
 	defer localFile.Close()
 
-	if downloader, ok := c.downloaders[downloadRecord.Manager]; ok {
-		return downloader(downloadRecord, localFile)
+	if downloader, ok := c.downloaders[dr.Manager]; ok {
+		return downloader(dr, localFile)
 	}
 
-	return fmt.Errorf("no dowloader found for %q", downloadRecord.Path)
+	return fmt.Errorf("no dowloader found for %q", dr.Path)
 }
 
 // New returns a properly configured cache. Bubbles up errors from the Hashicrorp
@@ -192,37 +192,37 @@ func New(size int, baseDir string, opts ...option) (*FileCache, error) {
 // FetchNewerThan will look in the cache for a file, make sure it's newer than
 // timestamp, and if so return true. Otherwise it will possibly download the file
 // and only return false if it's unable to do so.
-func (c *FileCache) FetchNewerThan(downloadRecord *DownloadRecord, timestamp time.Time) bool {
-	if !c.Contains(downloadRecord) {
-		return c.Fetch(downloadRecord)
+func (c *FileCache) FetchNewerThan(dr *DownloadRecord, timestamp time.Time) bool {
+	if !c.Contains(dr) {
+		return c.Fetch(dr)
 	}
 
-	storagePath := c.GetFileName(downloadRecord)
+	storagePath := c.GetFileName(dr)
 	stat, err := times.Stat(storagePath)
 	if err != nil {
-		return c.Fetch(downloadRecord)
+		return c.Fetch(dr)
 	}
 
 	// We use mtime because the file could have been overwritten with new data
 	// Compare the timestamp, and need to check the cache again... could have changed
-	if c.Contains(downloadRecord) && timestamp.Before(stat.ModTime()) {
+	if c.Contains(dr) && timestamp.Before(stat.ModTime()) {
 		return true
 	}
 
-	return c.Reload(downloadRecord)
+	return c.Reload(dr)
 }
 
 // Fetch will return true if we have the file, or will go download the file and
 // return true if we can. It will return false only if it's unable to fetch the
 // file from the backing store (S3).
-func (c *FileCache) Fetch(downloadRecord *DownloadRecord) bool {
-	if c.Contains(downloadRecord) {
+func (c *FileCache) Fetch(dr *DownloadRecord) bool {
+	if c.Contains(dr) {
 		return true
 	}
 
-	err := c.MaybeDownload(downloadRecord)
+	err := c.MaybeDownload(dr)
 	if err != nil {
-		log.Errorf("Tried to fetch file %s, got '%s'", downloadRecord.Path, err)
+		log.Errorf("Tried to fetch file %s, got '%s'", dr.Path, err)
 		return false
 	}
 
@@ -231,12 +231,12 @@ func (c *FileCache) Fetch(downloadRecord *DownloadRecord) bool {
 
 // Reload will remove a file from the cache and attempt to reload from the
 // backing store, calling MaybeDownload().
-func (c *FileCache) Reload(downloadRecord *DownloadRecord) bool {
-	c.Cache.Remove(downloadRecord.GetUniqueName())
+func (c *FileCache) Reload(dr *DownloadRecord) bool {
+	c.Cache.Remove(dr.GetUniqueName())
 
-	err := c.MaybeDownload(downloadRecord)
+	err := c.MaybeDownload(dr)
 	if err != nil {
-		log.Errorf("Tried to fetch file %s, got '%s'", downloadRecord.Path, err)
+		log.Errorf("Tried to fetch file %s, got '%s'", dr.Path, err)
 		return false
 	}
 
@@ -244,26 +244,26 @@ func (c *FileCache) Reload(downloadRecord *DownloadRecord) bool {
 }
 
 // Contains looks to see if we have an entry in the cache for this file.
-func (c *FileCache) Contains(downloadRecord *DownloadRecord) bool {
-	return c.Cache.Contains(downloadRecord.GetUniqueName())
+func (c *FileCache) Contains(dr *DownloadRecord) bool {
+	return c.Cache.Contains(dr.GetUniqueName())
 }
 
 // MaybeDownload might go out to the backing store (S3) and get the file if the
 // file isn't already being downloaded in another routine. In both cases it will
 // block until the download is completed either by this goroutine or another one.
-func (c *FileCache) MaybeDownload(downloadRecord *DownloadRecord) error {
+func (c *FileCache) MaybeDownload(dr *DownloadRecord) error {
 	// See if someone is already downloading
 	c.WaitLock.Lock()
-	if waitChan, ok := c.Waiting[downloadRecord.GetUniqueName()]; ok {
+	if waitChan, ok := c.Waiting[dr.GetUniqueName()]; ok {
 		c.WaitLock.Unlock()
 
-		log.Debugf("Awaiting download of %s", downloadRecord.Path)
+		log.Debugf("Awaiting download of %s", dr.Path)
 		<-waitChan
 		return nil
 	}
 
 	// The file could have arrived while we were getting here
-	if c.Contains(downloadRecord) {
+	if c.Contains(dr) {
 		c.WaitLock.Unlock()
 		return nil
 	}
@@ -271,26 +271,26 @@ func (c *FileCache) MaybeDownload(downloadRecord *DownloadRecord) error {
 	// Still don't have it, let's fetch it.
 	// This tells other goroutines that we're fetching, and
 	// lets us signal completion.
-	log.Debugf("Making channel for %s", downloadRecord.Path)
-	c.Waiting[downloadRecord.GetUniqueName()] = make(chan struct{})
+	log.Debugf("Making channel for %s", dr.Path)
+	c.Waiting[dr.GetUniqueName()] = make(chan struct{})
 	c.WaitLock.Unlock()
 
 	// Ensure we don't leave the channel open when leaving this function
 	defer func() {
 		c.WaitLock.Lock()
-		log.Debugf("Deleting channel for %s", downloadRecord.Path)
-		close(c.Waiting[downloadRecord.GetUniqueName()])  // Notify anyone waiting on us
-		delete(c.Waiting, downloadRecord.GetUniqueName()) // Remove it from the waiting map
+		log.Debugf("Deleting channel for %s", dr.Path)
+		close(c.Waiting[dr.GetUniqueName()])  // Notify anyone waiting on us
+		delete(c.Waiting, dr.GetUniqueName()) // Remove it from the waiting map
 		c.WaitLock.Unlock()
 	}()
 
-	storagePath := c.GetFileName(downloadRecord)
-	err := c.DownloadFunc(downloadRecord, storagePath)
+	storagePath := c.GetFileName(dr)
+	err := c.DownloadFunc(dr, storagePath)
 	if err != nil {
 		return err
 	}
 
-	c.Cache.Add(downloadRecord.GetUniqueName(), storagePath)
+	c.Cache.Add(dr.GetUniqueName(), storagePath)
 
 	return nil
 }
@@ -339,11 +339,11 @@ func (c *FileCache) PurgeAsync(doneChan chan struct{}) {
 //
 // e.g. /base_dir/2b/b0804ec967f48520697662a204f5fe72
 //
-func (c *FileCache) GetFileName(downloadRecord *DownloadRecord) string {
-	hashedFilename := md5.Sum([]byte(downloadRecord.Path))
+func (c *FileCache) GetFileName(dr *DownloadRecord) string {
+	hashedFilename := md5.Sum([]byte(dr.Path))
 	fnvHasher := fnv.New32()
 	// The current implementation of fnv.New32().Write never returns a non-nil error
-	_, err := fnvHasher.Write([]byte(downloadRecord.Path))
+	_, err := fnvHasher.Write([]byte(dr.Path))
 	if err != nil {
 		log.Errorf("Failed to compute the fnv hash: %s", err)
 	}
@@ -353,17 +353,17 @@ func (c *FileCache) GetFileName(downloadRecord *DownloadRecord) string {
 	extension := c.DefaultExtension
 
 	// Look in the last 5 characters for a . and extension
-	lastDot := strings.LastIndexByte(downloadRecord.Path, '.')
-	if lastDot > len(downloadRecord.Path)-6 {
-		extension = downloadRecord.Path[lastDot:]
+	lastDot := strings.LastIndexByte(dr.Path, '.')
+	if lastDot > len(dr.Path)-6 {
+		extension = dr.Path[lastDot:]
 	}
 
 	var fileName string
-	if len(downloadRecord.Args) != 0 {
+	if len(dr.Args) != 0 {
 		// in order to avoid file cache collision on the same filename, if we
-		// have existing HTTP headers into the downloadRecord.Args append their
+		// have existing HTTP headers into the dr.Args append their
 		// hashed value between the hashedFilename and extension with _ prefix
-		fileName = fmt.Sprintf("%x_%x%s", hashedFilename, downloadRecord.HashedArgs, extension)
+		fileName = fmt.Sprintf("%x_%x%s", hashedFilename, dr.HashedArgs, extension)
 	} else {
 		fileName = fmt.Sprintf("%x%s", hashedFilename, extension)
 	}
@@ -373,7 +373,7 @@ func (c *FileCache) GetFileName(downloadRecord *DownloadRecord) string {
 }
 
 // getHashedArgs computes the MD5 sum of the arguments existing in a
-// downloadRecord matching HashableArgs array and return the hashed value as a string
+// DownloadRecord matching HashableArgs array and return the hashed value as a string
 func getHashedArgs(args map[string]string) string {
 	var builder strings.Builder
 	for hashableArg := range HashableArgs {
