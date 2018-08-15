@@ -232,7 +232,7 @@ func (c *FileCache) Fetch(downloadRecord *DownloadRecord) bool {
 // Reload will remove a file from the cache and attempt to reload from the
 // backing store, calling MaybeDownload().
 func (c *FileCache) Reload(downloadRecord *DownloadRecord) bool {
-	c.Cache.Remove(downloadRecord.Path)
+	c.Cache.Remove(downloadRecord.GetUniqueName())
 
 	err := c.MaybeDownload(downloadRecord)
 	if err != nil {
@@ -245,7 +245,7 @@ func (c *FileCache) Reload(downloadRecord *DownloadRecord) bool {
 
 // Contains looks to see if we have an entry in the cache for this file.
 func (c *FileCache) Contains(downloadRecord *DownloadRecord) bool {
-	return c.Cache.Contains(downloadRecord.Path)
+	return c.Cache.Contains(downloadRecord.GetUniqueName())
 }
 
 // MaybeDownload might go out to the backing store (S3) and get the file if the
@@ -254,7 +254,7 @@ func (c *FileCache) Contains(downloadRecord *DownloadRecord) bool {
 func (c *FileCache) MaybeDownload(downloadRecord *DownloadRecord) error {
 	// See if someone is already downloading
 	c.WaitLock.Lock()
-	if waitChan, ok := c.Waiting[downloadRecord.Path]; ok {
+	if waitChan, ok := c.Waiting[downloadRecord.GetUniqueName()]; ok {
 		c.WaitLock.Unlock()
 
 		log.Debugf("Awaiting download of %s", downloadRecord.Path)
@@ -272,15 +272,15 @@ func (c *FileCache) MaybeDownload(downloadRecord *DownloadRecord) error {
 	// This tells other goroutines that we're fetching, and
 	// lets us signal completion.
 	log.Debugf("Making channel for %s", downloadRecord.Path)
-	c.Waiting[downloadRecord.Path] = make(chan struct{})
+	c.Waiting[downloadRecord.GetUniqueName()] = make(chan struct{})
 	c.WaitLock.Unlock()
 
 	// Ensure we don't leave the channel open when leaving this function
 	defer func() {
 		c.WaitLock.Lock()
 		log.Debugf("Deleting channel for %s", downloadRecord.Path)
-		close(c.Waiting[downloadRecord.Path])  // Notify anyone waiting on us
-		delete(c.Waiting, downloadRecord.Path) // Remove it from the waiting map
+		close(c.Waiting[downloadRecord.GetUniqueName()])  // Notify anyone waiting on us
+		delete(c.Waiting, downloadRecord.GetUniqueName()) // Remove it from the waiting map
 		c.WaitLock.Unlock()
 	}()
 
@@ -290,7 +290,7 @@ func (c *FileCache) MaybeDownload(downloadRecord *DownloadRecord) error {
 		return err
 	}
 
-	c.Cache.Add(downloadRecord.Path, storagePath)
+	c.Cache.Add(downloadRecord.GetUniqueName(), storagePath)
 
 	return nil
 }
@@ -433,4 +433,13 @@ func NewDownloadRecord(url string, args map[string]string) (*DownloadRecord, err
 		Args:       normalisedArgs,
 		HashedArgs: getHashedArgs(normalisedArgs),
 	}, nil
+}
+
+// GetUniqueName returns a *HOPEFULLY* unique name for the download record
+func (dr *DownloadRecord) GetUniqueName() string {
+	if len(dr.Args) > 0 {
+		return fmt.Sprintf("%s_%s", dr.Path, dr.HashedArgs)
+	}
+
+	return dr.Path
 }
