@@ -22,19 +22,19 @@ var (
 // DropboxDownload will fetch a file from the specified Dropbox path into a localFile. It
 // will create sub-directories as needed inside that path in order to store the
 // complete path name of the file.
-func DropboxDownload(downloadRecord *DownloadRecord, localFile *os.File, downloadTimeout time.Duration) error {
-	accessToken := downloadRecord.Args[dropboxAccessToken]
+func DropboxDownload(dr *DownloadRecord, localFile *os.File, downloadTimeout time.Duration) error {
+	accessToken := dr.Args[dropboxAccessToken]
 	if accessToken == "" {
 		return fmt.Errorf("missing %q header", dropboxAccessToken)
 	}
 
 	// The actual path of the file should be after the "dropbox" prefix
-	if !strings.HasPrefix(downloadRecord.Path, "dropbox/") {
+	if !strings.HasPrefix(dr.Path, "dropbox/") {
 		return errors.New("missing dropbox prefix in file path")
 	}
 
 	// In the case of Dropbox files, the path will contain the file ID
-	fileID := "id:" + strings.TrimLeft(downloadRecord.Path, "dropbox/")
+	fileID := "id:" + strings.TrimLeft(dr.Path, "dropbox/")
 
 	// Ripped off from here https://github.com/dropbox/dropbox-sdk-go-unofficial/blob/7afa861bfde5a348d765522b303b6fbd9d250155/dropbox/sdk.go#L153-L157
 	// because we have to set the `Client` field manually in `dropbox.Config` if we want to configure
@@ -65,7 +65,7 @@ func DropboxDownload(downloadRecord *DownloadRecord, localFile *os.File, downloa
 		return fmt.Errorf("failed to write local file: %s", err)
 	}
 
-	log.Debugf("Took %s to download %d bytes from Dropbox for %s", time.Since(startTime), numBytes, downloadRecord.Path)
+	log.Debugf("Took %s to download %d bytes from Dropbox for %s", time.Since(startTime), numBytes, dr.Path)
 
 	return nil
 }

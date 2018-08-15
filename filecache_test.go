@@ -29,7 +29,7 @@ var _ = Describe("Filecache", func() {
 		cacheFile           string
 	)
 
-	mockDownloader := func(downloadRecord *DownloadRecord, localPath string) error {
+	mockDownloader := func(dr *DownloadRecord, localPath string) error {
 		if downloadShouldError {
 			return errors.New("Oh no! Tragedy!")
 		}
@@ -177,6 +177,29 @@ var _ = Describe("Filecache", func() {
 
 		It("downloads the file when we don't have it", func() {
 			Expect(cache.Fetch(&DownloadRecord{Path: "aragorn"})).To(BeTrue())
+			Expect(didDownload).To(BeTrue())
+		})
+
+		It("downloads a new file for records with the same path but different args", func() {
+			url, _ := url.Parse("/documents/test-bucket/foo.bar")
+			args := map[string]string{
+				dropboxAccessToken: "KnockKnock",
+			}
+
+			fooRec, _ := NewDownloadRecord(url.Path, args)
+			Expect(cache.Fetch(fooRec)).To(BeTrue())
+			Expect(didDownload).To(BeTrue())
+
+			// It should be in the cache now
+			didDownload = false
+			Expect(cache.Fetch(fooRec)).To(BeTrue())
+			Expect(didDownload).To(BeFalse())
+
+			// Using different args should create a new cache entry
+			didDownload = false
+			args[dropboxAccessToken] = "ComeIn"
+			fooRec, _ = NewDownloadRecord(url.Path, args)
+			Expect(cache.Fetch(fooRec)).To(BeTrue())
 			Expect(didDownload).To(BeTrue())
 		})
 	})
