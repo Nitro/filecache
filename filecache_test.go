@@ -407,11 +407,10 @@ var _ = Describe("Filecache", func() {
 				"FoobarAccessToken":  "Bilbo",
 			}
 			mockRecord, _ := NewDownloadRecord("/documents/dropbox/foo-file.pdf", args)
-			got := fmt.Sprintf("%x", mockRecord.HashedArgs)
 			sum := md5.Sum([]byte(args["DropboxAccessToken"]))
 			want := fmt.Sprintf("%x", sum[:])
 
-			Expect(got).To(Equal(want))
+			Expect(mockRecord.HashedArgs).To(Equal(want))
 		})
 
 		It("should ignore header name casing", func() {
@@ -419,11 +418,10 @@ var _ = Describe("Filecache", func() {
 				"Dropboxaccesstoken": "Frodo",
 			}
 			mockRecord, _ := NewDownloadRecord("/documents/dropbox/foo-file.pdf", args)
-			got := fmt.Sprintf("%x", mockRecord.HashedArgs)
 			sum := md5.Sum([]byte(args["Dropboxaccesstoken"]))
 			want := fmt.Sprintf("%x", sum[:])
 
-			Expect(got).To(Equal(want))
+			Expect(mockRecord.HashedArgs).To(Equal(want))
 		})
 	})
 })
