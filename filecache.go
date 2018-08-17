@@ -375,6 +375,10 @@ func (c *FileCache) GetFileName(dr *DownloadRecord) string {
 // getHashedArgs computes the MD5 sum of the arguments existing in a DownloadRecord
 // matching HashableArgs array and return the hashed value as a hex-encoded string
 func getHashedArgs(args map[string]string) string {
+	if len(args) == 0 {
+		return ""
+	}
+
 	var builder strings.Builder
 	for hashableArg := range HashableArgs {
 		if arg, ok := args[hashableArg]; ok {
@@ -383,6 +387,10 @@ func getHashedArgs(args map[string]string) string {
 				continue
 			}
 		}
+	}
+
+	if builder.Len() == 0 {
+		return ""
 	}
 
 	hashedArgs := md5.Sum([]byte(builder.String()))

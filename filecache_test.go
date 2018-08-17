@@ -398,9 +398,13 @@ var _ = Describe("Filecache", func() {
 			Expect(err).Should(Succeed())
 			Expect(dr.Manager).Should(BeEquivalentTo(DownloadMangerDropbox))
 		})
+
+		It("HashedArgs is empty if no HashableArgs args are passed in", func() {
+			Expect(dr.HashedArgs).To(BeEmpty())
+		})
 	})
 
-	Describe("GetHashedArguments()", func() {
+	Describe("HashedArgs", func() {
 		It("should hash only the HashableArgs", func() {
 			args := map[string]string{
 				"DropboxAccessToken": "Frodo",
