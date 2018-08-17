@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,6 +26,8 @@ var _ = Describe("Filecache", func() {
 		downloadCount       int
 		countLock           sync.Mutex
 		cacheFile           string
+		s3FilePath          = "/documents/test-bucket/foo.bar"
+		dropboxFilePath     = "/documents/dropbox/foo.bar"
 	)
 
 	mockDownloader := func(dr *DownloadRecord, localPath string) error {
@@ -181,12 +182,11 @@ var _ = Describe("Filecache", func() {
 		})
 
 		It("downloads a new file for records with the same path but different args", func() {
-			url, _ := url.Parse("/documents/test-bucket/foo.bar")
 			args := map[string]string{
 				dropboxAccessToken: "KnockKnock",
 			}
 
-			fooRec, _ := NewDownloadRecord(url.Path, args)
+			fooRec, _ := NewDownloadRecord(s3FilePath, args)
 			Expect(cache.Fetch(fooRec)).To(BeTrue())
 			Expect(didDownload).To(BeTrue())
 
@@ -198,7 +198,7 @@ var _ = Describe("Filecache", func() {
 			// Using different args should create a new cache entry
 			didDownload = false
 			args[dropboxAccessToken] = "ComeIn"
-			fooRec, _ = NewDownloadRecord(url.Path, args)
+			fooRec, _ = NewDownloadRecord(dropboxFilePath, args)
 			Expect(cache.Fetch(fooRec)).To(BeTrue())
 			Expect(didDownload).To(BeTrue())
 		})
@@ -284,19 +284,17 @@ var _ = Describe("Filecache", func() {
 		})
 
 		It("fetches the expected file name for S3 downloads with nil args", func() {
-			url, _ := url.Parse("/documents/test-bucket/foo.bar")
-			dr, _ := NewDownloadRecord(url.Path, nil)
+			dr, _ := NewDownloadRecord(s3FilePath, nil)
 			fname := cache.GetFileName(dr)
 
 			Expect(fname).To(Equal("4f/a197d51bc70c732281b46e122ff7af17.bar"))
 		})
 
 		It("fetches the expected file name for S3 downloads with non-nil args", func() {
-			url, _ := url.Parse("/documents/test-bucket/foo.bar")
 			args := map[string]string{
 				"DummyHeader": "SomeValue",
 			}
-			dr, _ := NewDownloadRecord(url.Path, args)
+			dr, _ := NewDownloadRecord(s3FilePath, args)
 			fname := cache.GetFileName(dr)
 
 			Expect(fname).To(Equal("4f/a197d51bc70c732281b46e122ff7af17.bar"))
@@ -307,8 +305,7 @@ var _ = Describe("Filecache", func() {
 				dropboxAccessToken: "KnockKnock",
 				"DummyHeader":      "SomeValue",
 			}
-			url, _ := url.Parse("/documents/dropbox/foo.bar")
-			dr, _ := NewDownloadRecord(url.Path, args)
+			dr, _ := NewDownloadRecord(dropboxFilePath, args)
 			fname := cache.GetFileName(dr)
 
 			Expect(fname).To(Equal("8b/5e92c8291b661710e0d1d25db4053f0d_1ff55f50db16da0ad21b8d68ce5aa8cb.bar"))
@@ -366,8 +363,7 @@ var _ = Describe("Filecache", func() {
 	})
 
 	Describe("NewDownloadRecord()", func() {
-		url, _ := url.Parse("/documents/testing-bucket/foo-file.pdf")
-		dr, err := NewDownloadRecord(url.Path, nil)
+		dr, err := NewDownloadRecord(s3FilePath, nil)
 
 		It("should not return an error", func() {
 			Expect(err).NotTo(HaveOccurred())
@@ -379,7 +375,7 @@ var _ = Describe("Filecache", func() {
 
 		// TODO: Revisit this in the future!
 		It("doesn't strip the bucket name from the path", func() {
-			Expect(dr.Path).To(ContainSubstring("testing-bucket/"))
+			Expect(dr.Path).To(ContainSubstring("test-bucket/"))
 		})
 
 		It("doesn't return a leading slash", func() {
@@ -387,26 +383,28 @@ var _ = Describe("Filecache", func() {
 		})
 
 		It("returns an error if the filename doesn't have enough components", func() {
-			url, _ := url.Parse("/documents/foo-file.pdf")
-			dr, err = NewDownloadRecord(url.Path, nil)
+			dr, err = NewDownloadRecord("/documents/foo-file.pdf", nil)
 			Expect(err).Should(HaveOccurred())
 		})
 
 		It("uses the dropbox downloader for documents with bucket = 'dropbox'", func() {
-			url, _ := url.Parse("/documents/dropbox/foo-file.pdf")
-			dr, err = NewDownloadRecord(url.Path, nil)
+			dr, err = NewDownloadRecord(dropboxFilePath, nil)
 			Expect(err).Should(Succeed())
 			Expect(dr.Manager).Should(BeEquivalentTo(DownloadMangerDropbox))
 		})
+
+		It("HashedArgs is empty if no HashableArgs args are passed in", func() {
+			Expect(dr.HashedArgs).To(BeEmpty())
+		})
 	})
 
-	Describe("GetHashedArguments()", func() {
+	Describe("HashedArgs", func() {
 		It("should hash only the HashableArgs", func() {
 			args := map[string]string{
 				"DropboxAccessToken": "Frodo",
 				"FoobarAccessToken":  "Bilbo",
 			}
-			mockRecord, _ := NewDownloadRecord("/documents/dropbox/foo-file.pdf", args)
+			mockRecord, _ := NewDownloadRecord(dropboxFilePath, args)
 			sum := md5.Sum([]byte(args["DropboxAccessToken"]))
 			want := fmt.Sprintf("%x", sum[:])
 
@@ -417,7 +415,7 @@ var _ = Describe("Filecache", func() {
 			args := map[string]string{
 				"Dropboxaccesstoken": "Frodo",
 			}
-			mockRecord, _ := NewDownloadRecord("/documents/dropbox/foo-file.pdf", args)
+			mockRecord, _ := NewDownloadRecord(dropboxFilePath, args)
 			sum := md5.Sum([]byte(args["Dropboxaccesstoken"]))
 			want := fmt.Sprintf("%x", sum[:])
 
