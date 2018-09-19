@@ -59,8 +59,13 @@ var _ = Describe("S3", func() {
 			Expect(dLoader1).To(Equal(dLoader2))
 		})
 
-		It("returns an error when trying to fetch a file which doesn't exist", func() {
+		It("returns an error when trying to fetch a file from a non-existent bucket", func() {
 			err := manager.Download(&DownloadRecord{Path: "non-existent-bucket/foo.pdf"}, localFile, 1*time.Second)
+			Expect(err.Error()).To(ContainSubstring("Unable to get downloader for non-existent-bucket"))
+		})
+
+		It("returns an error when trying to fetch a file which doesn't exist", func() {
+			err := manager.Download(&DownloadRecord{Path: "nitro-junk/non-existent-foo.pdf"}, localFile, 1*time.Second)
 			Expect(err.Error()).To(ContainSubstring("Could not fetch from S3"))
 		})
 
