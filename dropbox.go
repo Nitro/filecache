@@ -15,18 +15,17 @@ import (
 	"golang.org/x/oauth2"
 )
 
-var (
-	dropboxAccessToken = strings.ToLower("DropboxAccessToken")
-)
-
 // DropboxDownload will fetch a file from the specified Dropbox path into a localFile. It
 // will create sub-directories as needed inside that path in order to store the
 // complete path name of the file.
 func DropboxDownload(dr *DownloadRecord, localFile *os.File, downloadTimeout time.Duration) error {
-	accessToken := dr.Args[dropboxAccessToken]
-	if accessToken == "" {
-		return fmt.Errorf("missing %q header", dropboxAccessToken)
+	token := dr.Args[authTokenArg]
+	if token == "" {
+		return fmt.Errorf("missing %q arg", authTokenArg)
 	}
+
+	// Remove the "Bearer" prefix
+	token = strings.TrimSpace(strings.TrimPrefix(token, "Bearer"))
 
 	// The actual path of the file should be after the "dropbox" prefix
 	if !strings.HasPrefix(dr.Path, "dropbox/") {
@@ -40,13 +39,13 @@ func DropboxDownload(dr *DownloadRecord, localFile *os.File, downloadTimeout tim
 	// because we have to set the `Client` field manually in `dropbox.Config` if we want to configure
 	// a custom timeout :(
 	conf := &oauth2.Config{Endpoint: dropbox.OAuthEndpoint(".dropboxapi.com")}
-	tok := &oauth2.Token{AccessToken: accessToken}
+	tok := &oauth2.Token{AccessToken: token}
 	client := conf.Client(context.Background(), tok)
 	client.Timeout = downloadTimeout
 
 	dbx := files.New(
 		dropbox.Config{
-			Token:  accessToken,
+			Token:  token,
 			Client: client,
 			// Enable Dropbox logging if needed
 			// LogLevel: dropbox.LogInfo,

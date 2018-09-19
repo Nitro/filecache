@@ -183,7 +183,7 @@ var _ = Describe("Filecache", func() {
 
 		It("downloads a new file for records with the same path but different args", func() {
 			args := map[string]string{
-				dropboxAccessToken: "KnockKnock",
+				authTokenArg: "KnockKnock",
 			}
 
 			fooRec, _ := NewDownloadRecord(s3FilePath, args)
@@ -197,7 +197,7 @@ var _ = Describe("Filecache", func() {
 
 			// Using different args should create a new cache entry
 			didDownload = false
-			args[dropboxAccessToken] = "ComeIn"
+			args[authTokenArg] = "ComeIn"
 			fooRec, _ = NewDownloadRecord(dropboxFilePath, args)
 			Expect(cache.Fetch(fooRec)).To(BeTrue())
 			Expect(didDownload).To(BeTrue())
@@ -302,8 +302,8 @@ var _ = Describe("Filecache", func() {
 
 		It("fetches the expected file name for Dropbox downloads", func() {
 			args := map[string]string{
-				dropboxAccessToken: "KnockKnock",
-				"DummyHeader":      "SomeValue",
+				authTokenArg:  "KnockKnock",
+				"DummyHeader": "SomeValue",
 			}
 			dr, _ := NewDownloadRecord(dropboxFilePath, args)
 			fname := cache.GetFileName(dr)
@@ -401,11 +401,11 @@ var _ = Describe("Filecache", func() {
 	Describe("HashedArgs", func() {
 		It("should hash only the HashableArgs", func() {
 			args := map[string]string{
-				"DropboxAccessToken": "Frodo",
-				"FoobarAccessToken":  "Bilbo",
+				"authorization":     "Frodo",
+				"FoobarAccessToken": "Bilbo",
 			}
 			mockRecord, _ := NewDownloadRecord(dropboxFilePath, args)
-			sum := md5.Sum([]byte(args["DropboxAccessToken"]))
+			sum := md5.Sum([]byte(args["authorization"]))
 			want := fmt.Sprintf("%x", sum[:])
 
 			Expect(mockRecord.HashedArgs).To(Equal(want))
@@ -413,10 +413,10 @@ var _ = Describe("Filecache", func() {
 
 		It("should ignore header name casing", func() {
 			args := map[string]string{
-				"Dropboxaccesstoken": "Frodo",
+				"Authorization": "Frodo",
 			}
 			mockRecord, _ := NewDownloadRecord(dropboxFilePath, args)
-			sum := md5.Sum([]byte(args["Dropboxaccesstoken"]))
+			sum := md5.Sum([]byte("Frodo"))
 			want := fmt.Sprintf("%x", sum[:])
 
 			Expect(mockRecord.HashedArgs).To(Equal(want))

@@ -24,7 +24,8 @@ const (
 
 var (
 	errInvalidURLPath = errors.New("invalid URL path")
-	HashableArgs      = map[string]struct{}{dropboxAccessToken: {}}
+	authTokenArg      = strings.ToLower("authorization")
+	HashableArgs      = map[string]struct{}{authTokenArg: {}}
 )
 
 type DownloadManager int
