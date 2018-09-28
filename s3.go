@@ -112,7 +112,13 @@ func (m *S3RegionManagedDownloader) Download(dr *DownloadRecord, localFile *os.F
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("Could not fetch from S3: %s", err)
+		errMessage := err.Error()
+		if s3Err, ok := err.(s3.RequestFailure); ok {
+			errMessage = fmt.Sprintf(
+				"request ID %q on host %q failed: %s", s3Err.RequestID(), s3Err.HostID(), errMessage,
+			)
+		}
+		return fmt.Errorf("Could not fetch from S3: %s", errMessage)
 	}
 
 	if numBytes < 1 {
