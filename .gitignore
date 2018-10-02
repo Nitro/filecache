@@ -2,3 +2,4 @@
 *.swo
 foo.pdf
 junk
+/vendor
