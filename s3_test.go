@@ -61,7 +61,7 @@ var _ = Describe("S3", func() {
 
 		It("returns an error when trying to fetch a file which doesn't exist", func() {
 			err := manager.Download(&DownloadRecord{Path: "non-existent-bucket/foo.pdf"}, localFile, 1*time.Second)
-			Expect(err.Error()).To(ContainSubstring("Could not fetch from S3"))
+			Expect(err.Error()).To(ContainSubstring("Unable to get downloader for non-existent-bucket: Region for non-existent-bucket not found"))
 		})
 
 		It("returns an error when getting a 0 length file", func() {
