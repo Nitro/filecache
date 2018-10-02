@@ -1,0 +1,12 @@
+language: go
+
+go:
+  - 1.10.x
+
+sudo: required
+
+before_install:
+  - sudo apt-get install -y ca-certificates
+
+script:
+  - go test -v -race --timeout 1m
