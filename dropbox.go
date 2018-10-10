@@ -19,9 +19,7 @@ var (
 	dropboxAccessToken = strings.ToLower("DropboxAccessToken")
 )
 
-// DropboxDownload will fetch a file from the specified Dropbox path into a localFile. It
-// will create sub-directories as needed inside that path in order to store the
-// complete path name of the file.
+// DropboxDownload will download a file from the specified Dropbox location into localFile
 func DropboxDownload(dr *DownloadRecord, localFile *os.File, downloadTimeout time.Duration) error {
 	accessToken := dr.Args[dropboxAccessToken]
 	if accessToken == "" {

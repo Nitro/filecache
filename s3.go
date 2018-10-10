@@ -78,9 +78,7 @@ func (m *S3RegionManagedDownloader) GetDownloader(ctx context.Context, bucket st
 	return dLoader, nil
 }
 
-// Download will fetch a file from the specified bucket into a localFile. It
-// will create sub-directories as needed inside that path in order to store the
-// complete path name of the file.
+// Download will download a file from the specified S3 bucket into localFile
 func (m *S3RegionManagedDownloader) Download(dr *DownloadRecord, localFile *os.File, downloadTimeout time.Duration) error {
 	fname := dr.Path
 
