@@ -28,6 +28,7 @@ var _ = Describe("Filecache", func() {
 		cacheFile           string
 		s3FilePath          = "/documents/test-bucket/foo.bar"
 		dropboxFilePath     = "/documents/dropbox/foo.bar"
+		dropboxAccessToken  = strings.ToLower("DropboxAccessToken")
 	)
 
 	mockDownloader := func(dr *DownloadRecord, localPath string) error {
@@ -43,6 +44,9 @@ var _ = Describe("Filecache", func() {
 		didDownload = true
 		return nil
 	}
+
+	// Set the dummy dropboxAccessToken in the global HashableArgs map
+	HashableArgs[dropboxAccessToken] = struct{}{}
 
 	BeforeEach(func() {
 		cache, err = New(10, ".", DownloadTimeout(1*time.Millisecond), S3Downloader("gondor-north-1"))
