@@ -98,7 +98,7 @@ var _ = Describe("Filecache", func() {
 	Describe("MaybeDownload()", func() {
 		BeforeEach(func() {
 			cache, err = New(10, ".", S3Downloader("gondor-north-1"), DownloadTimeout(1*time.Millisecond))
-			Expect(err).To(BeNil())
+			Expect(err).ShouldNot(HaveOccurred())
 			cache.DownloadFunc = mockDownloader
 
 			downloadCount = 0
@@ -120,7 +120,8 @@ var _ = Describe("Filecache", func() {
 		})
 
 		It("does not leave garbage in 'Waiting'", func() {
-			cache.MaybeDownload(&DownloadRecord{Path: "bilbo"})
+			err = cache.MaybeDownload(&DownloadRecord{Path: "bilbo"})
+			Expect(err).ShouldNot(HaveOccurred())
 
 			_, ok := cache.Waiting["bilbo"]
 			Expect(ok).To(BeFalse())
@@ -129,7 +130,8 @@ var _ = Describe("Filecache", func() {
 		It("adds entries to the cache after downloading", func() {
 			Expect(cache.Contains(&DownloadRecord{Path: "bilbo"})).NotTo(BeTrue())
 
-			cache.MaybeDownload(&DownloadRecord{Path: "bilbo"})
+			err = cache.MaybeDownload(&DownloadRecord{Path: "bilbo"})
+			Expect(err).ShouldNot(HaveOccurred())
 
 			Expect(cache.Contains(&DownloadRecord{Path: "bilbo"})).To(BeTrue())
 		})
@@ -143,7 +145,12 @@ var _ = Describe("Filecache", func() {
 			var wg sync.WaitGroup
 			for i := 0; i < 10; i++ {
 				wg.Add(1)
-				go func() { cache.MaybeDownload(&DownloadRecord{Path: "bilbo"}); wg.Done() }()
+				go func() {
+					err := cache.MaybeDownload(&DownloadRecord{Path: "bilbo"})
+					Expect(err).ShouldNot(HaveOccurred())
+
+					wg.Done()
+				}()
 			}
 			wg.Wait()
 
@@ -156,7 +163,12 @@ var _ = Describe("Filecache", func() {
 			var wg sync.WaitGroup
 			for i := 0; i < 10; i++ {
 				wg.Add(1)
-				go func() { cache.MaybeDownload(&DownloadRecord{Path: "bilbo"}); wg.Done() }()
+				go func() {
+					err := cache.MaybeDownload(&DownloadRecord{Path: "bilbo"})
+					Expect(err).ShouldNot(HaveOccurred())
+
+					wg.Done()
+				}()
 			}
 			wg.Wait()
 
@@ -216,8 +228,10 @@ var _ = Describe("Filecache", func() {
 
 			// Manually write the file to the cache
 			cacheFile = filepath.Join(os.TempDir(), cache.GetFileName(&DownloadRecord{Path: "aragorn"}))
-			os.MkdirAll(filepath.Dir(cacheFile), 0755)
-			ioutil.WriteFile(cacheFile, []byte(`some bytes`), 0644)
+			err = os.MkdirAll(filepath.Dir(cacheFile), 0755)
+			Expect(err).ShouldNot(HaveOccurred())
+			err = ioutil.WriteFile(cacheFile, []byte(`some bytes`), 0644)
+			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		AfterEach(func() {
@@ -226,8 +240,10 @@ var _ = Describe("Filecache", func() {
 
 		It("doesn't try to download files we already have if they are new enough", func() {
 			cache.Cache.Add("aragorn", cache.GetFileName(&DownloadRecord{Path: "aragorn"}))
-			os.MkdirAll(filepath.Dir(cache.GetFileName(&DownloadRecord{Path: "aragorn"})), 0755)
-			ioutil.WriteFile(cache.GetFileName(&DownloadRecord{Path: "aragorn"}), []byte("aragorn"), 0644)
+			err = os.MkdirAll(filepath.Dir(cache.GetFileName(&DownloadRecord{Path: "aragorn"})), 0755)
+			Expect(err).ShouldNot(HaveOccurred())
+			err = ioutil.WriteFile(cache.GetFileName(&DownloadRecord{Path: "aragorn"}), []byte("aragorn"), 0644)
+			Expect(err).ShouldNot(HaveOccurred())
 
 			Expect(cache.FetchNewerThan(&DownloadRecord{Path: "aragorn"}, time.Now().Add(-10*time.Minute))).To(BeTrue())
 			Expect(didDownload).To(BeFalse())

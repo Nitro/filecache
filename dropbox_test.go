@@ -31,7 +31,8 @@ func (dw *dummyWriter) Write(p []byte) (n int, err error) {
 var _ = Describe("DropboxDownload", func() {
 	It("downloads a file successfully", func() {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte("dummy_content"))
+			_, err := w.Write([]byte("dummy_content"))
+			Expect(err).To(BeNil())
 		}))
 		defer ts.Close()
 		url := fmt.Sprintf(
@@ -84,7 +85,8 @@ var _ = Describe("DropboxDownload", func() {
 
 	It("returns an error when streaming the file to disk fails", func() {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte("dummy_content"))
+			_, err := w.Write([]byte("dummy_content"))
+			Expect(err).To(BeNil())
 		}))
 		defer ts.Close()
 		url := fmt.Sprintf(
@@ -103,7 +105,8 @@ var _ = Describe("DropboxDownload", func() {
 
 	It("fails to download when timing out", func() {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte("dummy_content"))
+			_, err := w.Write([]byte("dummy_content"))
+			Expect(err).To(BeNil())
 		}))
 		defer ts.Close()
 		url := fmt.Sprintf(
