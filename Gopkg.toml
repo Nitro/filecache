@@ -34,10 +34,6 @@
   version = "1.0.1"
 
 [[constraint]]
-  name = "github.com/dropbox/dropbox-sdk-go-unofficial"
-  version = "4.1.0"
-
-[[constraint]]
   name = "github.com/hashicorp/golang-lru"
   version = "0.5.0"
 
@@ -52,10 +48,6 @@
 [[constraint]]
   name = "github.com/sirupsen/logrus"
   version = "1.1.0"
-
-[[constraint]]
-  branch = "master"
-  name = "golang.org/x/oauth2"
 
 [prune]
   go-tests = true

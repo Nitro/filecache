@@ -2,65 +2,41 @@ package filecache
 
 import (
 	"context"
-	"errors"
+	"encoding/base64"
 	"fmt"
 	"io"
-	"os"
+	"net/http"
 	"strings"
 	"time"
 
-	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox"
-	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/files"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/oauth2"
 )
 
-var (
-	dropboxAccessToken = strings.ToLower("DropboxAccessToken")
-)
+// DropboxDownload will download a file from the specified Dropbox location into localFile
+func DropboxDownload(dr *DownloadRecord, localFile io.Writer, downloadTimeout time.Duration) error {
+	// In the case of Dropbox files, the path will contain the base64-encoded file URL after dropbox/
+	fileURL, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(dr.Path, "dropbox/"))
 
-// DropboxDownload will fetch a file from the specified Dropbox path into a localFile. It
-// will create sub-directories as needed inside that path in order to store the
-// complete path name of the file.
-func DropboxDownload(dr *DownloadRecord, localFile *os.File, downloadTimeout time.Duration) error {
-	accessToken := dr.Args[dropboxAccessToken]
-	if accessToken == "" {
-		return fmt.Errorf("missing %q header", dropboxAccessToken)
+	if err != nil {
+		return fmt.Errorf("could not base64 decode file URL: %s", err)
 	}
-
-	// The actual path of the file should be after the "dropbox" prefix
-	if !strings.HasPrefix(dr.Path, "dropbox/") {
-		return errors.New("missing dropbox prefix in file path")
-	}
-
-	// In the case of Dropbox files, the path will contain the file ID
-	fileID := "id:" + strings.TrimLeft(dr.Path, "dropbox/")
-
-	// Ripped off from here https://github.com/dropbox/dropbox-sdk-go-unofficial/blob/7afa861bfde5a348d765522b303b6fbd9d250155/dropbox/sdk.go#L153-L157
-	// because we have to set the `Client` field manually in `dropbox.Config` if we want to configure
-	// a custom timeout :(
-	conf := &oauth2.Config{Endpoint: dropbox.OAuthEndpoint(".dropboxapi.com")}
-	tok := &oauth2.Token{AccessToken: accessToken}
-	client := conf.Client(context.Background(), tok)
-	client.Timeout = downloadTimeout
-
-	dbx := files.New(
-		dropbox.Config{
-			Token:  accessToken,
-			Client: client,
-			// Enable Dropbox logging if needed
-			// LogLevel: dropbox.LogInfo,
-		},
-	)
 
 	startTime := time.Now()
-	_, content, err := dbx.Download(files.NewDownloadArg(fileID))
-	if err != nil {
-		return fmt.Errorf("could not download file: %s", err)
-	}
-	defer content.Close()
+	ctx, cancelFunc := context.WithTimeout(context.Background(), downloadTimeout)
+	defer cancelFunc()
 
-	numBytes, err := io.Copy(localFile, content)
+	req, err := http.NewRequest(http.MethodGet, string(fileURL), nil)
+	if err != nil {
+		return fmt.Errorf("could not create HTTP request for URL %q: %s", fileURL, err)
+	}
+
+	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+	if err != nil {
+		return fmt.Errorf("failed to download file %q: %s", fileURL, err)
+	}
+	defer resp.Body.Close()
+
+	numBytes, err := io.Copy(localFile, resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to write local file: %s", err)
 	}

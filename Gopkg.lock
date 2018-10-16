@@ -52,33 +52,12 @@
   version = "v1.0.1"
 
 [[projects]]
-  digest = "1:6a16a71a3278c8ddc86848a6a24eb21f5bc692fb6c78c3b2bb42b4ad3d05f2ec"
-  name = "github.com/dropbox/dropbox-sdk-go-unofficial"
-  packages = [
-    "dropbox",
-    "dropbox/async",
-    "dropbox/file_properties",
-    "dropbox/files",
-  ]
-  pruneopts = "UT"
-  revision = "7afa861bfde5a348d765522b303b6fbd9d250155"
-  version = "v4.1.0"
-
-[[projects]]
   digest = "1:b98e7574fc27ec166fb31195ec72c3bd0bffd73926d3612eb4c929bc5236f75b"
   name = "github.com/go-ini/ini"
   packages = ["."]
   pruneopts = "UT"
   revision = "7b294651033cd7d9e7f0d9ffa1b75ed1e198e737"
   version = "v1.38.3"
-
-[[projects]]
-  digest = "1:97df918963298c287643883209a2c3f642e6593379f97ab400c2a2e219ab647d"
-  name = "github.com/golang/protobuf"
-  packages = ["proto"]
-  pruneopts = "UT"
-  revision = "aa810b61a9c79d51363740d207bb46cf8e620ed5"
-  version = "v1.2.0"
 
 [[projects]]
   digest = "1:8ec8d88c248041a6df5f6574b87bc00e7e0b493881dad2e7ef47b11dc69093b5"
@@ -186,28 +165,15 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:1773c29e859f20619b8d70811ff67de2b4dcad02a5fc0bfac16501fa666df147"
+  digest = "1:2394b7d142aba21cd69bdb719c1588dae1aebf115d8f4c033ec0338f30684309"
   name = "golang.org/x/net"
   packages = [
-    "context",
-    "context/ctxhttp",
     "html",
     "html/atom",
     "html/charset",
   ]
   pruneopts = "UT"
   revision = "4dfa2610cdf3b287375bbba5b8f2a14d3b01d8de"
-
-[[projects]]
-  branch = "master"
-  digest = "1:363b547c971a2b07474c598b6e9ebcb238d556d8a27f37b3895ad20cd50e7281"
-  name = "golang.org/x/oauth2"
-  packages = [
-    ".",
-    "internal",
-  ]
-  pruneopts = "UT"
-  revision = "d2e6202438beef2727060aa7cabdd924d92ebfd9"
 
 [[projects]]
   branch = "master"
@@ -247,22 +213,6 @@
   version = "v0.3.0"
 
 [[projects]]
-  digest = "1:6247f76e55a1e1a5c19a81e2d4b4dff6730461eeb5bbb0a16dd4a8ec8637ee93"
-  name = "google.golang.org/appengine"
-  packages = [
-    "internal",
-    "internal/base",
-    "internal/datastore",
-    "internal/log",
-    "internal/remote_api",
-    "internal/urlfetch",
-    "urlfetch",
-  ]
-  pruneopts = "UT"
-  revision = "ae0ab99deb4dc413a2b4bd6c8bdd0eb67f1e4d06"
-  version = "v1.2.0"
-
-[[projects]]
   digest = "1:abeb38ade3f32a92943e5be54f55ed6d6e3b6602761d74b4aab4c9dd45c18abd"
   name = "gopkg.in/fsnotify/fsnotify.v1"
   packages = ["."]
@@ -295,13 +245,10 @@
     "github.com/aws/aws-sdk-go/service/s3",
     "github.com/aws/aws-sdk-go/service/s3/s3manager",
     "github.com/djherbis/times",
-    "github.com/dropbox/dropbox-sdk-go-unofficial/dropbox",
-    "github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/files",
     "github.com/hashicorp/golang-lru",
     "github.com/onsi/ginkgo",
     "github.com/onsi/gomega",
     "github.com/sirupsen/logrus",
-    "golang.org/x/oauth2",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
