@@ -15,7 +15,7 @@ import (
 // DropboxDownload will download a file from the specified Dropbox location into localFile
 func DropboxDownload(dr *DownloadRecord, localFile io.Writer, downloadTimeout time.Duration) error {
 	// In the case of Dropbox files, the path will contain the base64-encoded file URL after dropbox/
-	fileURL, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(dr.Path, "dropbox/"))
+	fileURL, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(dr.Path, "dropbox/"))
 
 	if err != nil {
 		return fmt.Errorf("could not base64 decode file URL: %s", err)

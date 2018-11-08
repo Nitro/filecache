@@ -37,7 +37,7 @@ var _ = Describe("DropboxDownload", func() {
 		defer ts.Close()
 		url := fmt.Sprintf(
 			"dropbox/%s",
-			base64.StdEncoding.EncodeToString([]byte(ts.URL)),
+			base64.RawURLEncoding.EncodeToString([]byte(ts.URL)),
 		)
 
 		dr, err := NewDownloadRecord(url, nil)
@@ -57,10 +57,22 @@ var _ = Describe("DropboxDownload", func() {
 		Expect(err).Should(HaveOccurred())
 	})
 
+	It("fails to decode an URL encoded with an invalid base64-encoding", func() {
+		url := fmt.Sprintf(
+			"dropbox/%s",
+			base64.StdEncoding.EncodeToString([]byte("http://dropbox.com/foo.bar")),
+		)
+		dr, err := NewDownloadRecord(url, nil)
+		Expect(err).To(BeNil())
+
+		err = DropboxDownload(dr, &dummyWriter{}, 100*time.Millisecond)
+		Expect(err).Should(HaveOccurred())
+	})
+
 	It("fails to create a HTTP request for an invalid URL", func() {
 		url := fmt.Sprintf(
 			"dropbox/%s",
-			base64.StdEncoding.EncodeToString([]byte("ht$tp://invalid_url")),
+			base64.RawURLEncoding.EncodeToString([]byte("ht$tp://invalid_url")),
 		)
 
 		dr, err := NewDownloadRecord(url, nil)
@@ -73,7 +85,7 @@ var _ = Describe("DropboxDownload", func() {
 	It("returns an error when trying to download from an unreachable domain", func() {
 		url := fmt.Sprintf(
 			"dropbox/%s",
-			base64.StdEncoding.EncodeToString([]byte("http://some_dummy_domain.com")),
+			base64.RawURLEncoding.EncodeToString([]byte("http://some_dummy_domain.com")),
 		)
 
 		dr, err := NewDownloadRecord(url, nil)
@@ -91,7 +103,7 @@ var _ = Describe("DropboxDownload", func() {
 		defer ts.Close()
 		url := fmt.Sprintf(
 			"dropbox/%s",
-			base64.StdEncoding.EncodeToString([]byte(ts.URL)),
+			base64.RawURLEncoding.EncodeToString([]byte(ts.URL)),
 		)
 
 		dr, err := NewDownloadRecord(url, nil)
@@ -111,7 +123,7 @@ var _ = Describe("DropboxDownload", func() {
 		defer ts.Close()
 		url := fmt.Sprintf(
 			"dropbox/%s",
-			base64.StdEncoding.EncodeToString([]byte(ts.URL)),
+			base64.RawURLEncoding.EncodeToString([]byte(ts.URL)),
 		)
 
 		dr, err := NewDownloadRecord(url, nil)
