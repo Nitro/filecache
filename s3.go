@@ -11,6 +11,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
@@ -99,7 +100,16 @@ func (m *S3RegionManagedDownloader) Download(dr *DownloadRecord, localFile *os.F
 		return fmt.Errorf("Unable to get downloader for %s: %s", bucket, err)
 	}
 
-	log.Debugf("Downloading s3://%s/%s", bucket, fname)
+	var requestID, hostID string
+	requestInspectorFunc := func(r *request.Request) {
+		r.Handlers.Complete.PushBack(func(req *request.Request) {
+			requestID = req.RequestID
+			if req.HTTPResponse != nil && req.HTTPResponse.Header != nil {
+				hostID = req.HTTPResponse.Header.Get("X-Amz-Id-2")
+			}
+		})
+	}
+
 	startTime := time.Now()
 	numBytes, err := downloader.DownloadWithContext(
 		ctx,
@@ -108,22 +118,28 @@ func (m *S3RegionManagedDownloader) Download(dr *DownloadRecord, localFile *os.F
 			Bucket: aws.String(bucket),
 			Key:    aws.String(fname),
 		},
+		s3manager.WithDownloaderRequestOptions(
+			requestInspectorFunc,
+		),
 	)
 	if err != nil {
 		errMessage := err.Error()
 		if s3Err, ok := err.(s3.RequestFailure); ok {
 			errMessage = fmt.Sprintf(
-				"request ID %q on host %q failed: %s", s3Err.RequestID(), s3Err.HostID(), errMessage,
+				"Request ID %q on host %q failed: %s", s3Err.RequestID(), s3Err.HostID(), errMessage,
 			)
 		}
 		return fmt.Errorf("Could not fetch from S3: %s", errMessage)
 	}
 
+	log.Infof(
+		"Took %s to download s3://%s/%s (%d bytes) with request ID %q and host ID %q",
+		time.Since(startTime), bucket, fname, numBytes, requestID, hostID,
+	)
+
 	if numBytes < 1 {
 		return errors.New("0 length file received from S3")
 	}
-
-	log.Debugf("Took %s to download %d from S3 for %s", time.Since(startTime), numBytes, fname)
 
 	return nil
 }
