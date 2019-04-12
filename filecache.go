@@ -128,18 +128,11 @@ func DropboxDownloader() option {
 	}
 }
 
-func hasDirectoryComponent(localPath string) bool {
-	parts := strings.Split(localPath, "/")
-	if len(parts) == 2 && parts[0][0] == '.' {
-		return false
-	}
-	return len(parts) > 1
-}
-
 // download is a generic wrapper which performs common actions before delegating to the
 // specific downloader implementations
 func (c *FileCache) download(dr *DownloadRecord, localPath string) error {
-	if hasDirectoryComponent(localPath) {
+	directory := filepath.Dir(localPath)
+	if directory != "." {
 		// Make sure the path to the local file exists
 		log.Debugf("MkdirAll() on %s", filepath.Dir(localPath))
 		err := os.MkdirAll(filepath.Dir(localPath), 0755)
