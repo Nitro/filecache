@@ -133,8 +133,8 @@ func (m *S3RegionManagedDownloader) Download(dr *DownloadRecord, localFile *os.F
 	}
 
 	log.Infof(
-		"Took %s to download s3://%s/%s (%d bytes) with request ID %q and host ID %q",
-		time.Since(startTime), bucket, fname, numBytes, requestID, hostID,
+		"Took %fms to download s3://%s/%s (%d bytes) with request ID %q and host ID %q",
+		time.Since(startTime).Seconds()*1000, bucket, fname, numBytes, requestID, hostID,
 	)
 
 	if numBytes < 1 {
