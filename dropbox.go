@@ -41,7 +41,7 @@ func DropboxDownload(dr *DownloadRecord, localFile io.Writer, downloadTimeout ti
 		return fmt.Errorf("failed to write local file: %s", err)
 	}
 
-	log.Debugf("Took %s to download %d bytes from Dropbox for %s", time.Since(startTime), numBytes, dr.Path)
+	log.Debugf("Took %.2fms to download %d bytes from Dropbox for %s", time.Since(startTime).Seconds()*1000, numBytes, dr.Path)
 
 	return nil
 }
